@@ -1,7 +1,11 @@
 <?php
-$today        = date('l, F j, Y');
-$default_date = date('Y-m-d');
+$today         = date('l, F j, Y');
+$default_date  = date('Y-m-d');
 $default_month = date('Y-m');
+
+// Load saved employees for initial page render
+$empFile   = __DIR__ . '/employees.json';
+$employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), true) ?: []) : [];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -28,21 +32,18 @@ $default_month = date('Y-m');
 
         <a class="nav-item active" id="nav-offer" href="#"
            onclick="showTab('offer', this); return false;">
-            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"
-                 viewBox="0 0 24 24">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0
-                         2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
                 <line x1="16" y1="13" x2="8" y2="13"/>
                 <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
             </svg>
             Offer Letter
         </a>
 
         <a class="nav-item" id="nav-payslip" href="#"
            onclick="showTab('payslip', this); return false;">
-            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"
-                 viewBox="0 0 24 24">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <rect x="2" y="5" width="20" height="14" rx="2"/>
                 <line x1="2" y1="10" x2="22" y2="10"/>
             </svg>
@@ -50,13 +51,25 @@ $default_month = date('Y-m');
         </a>
 
         <a class="nav-item" href="letterhead.php" target="_blank">
-            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"
-                 viewBox="0 0 24 24">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
                 <line x1="3" y1="8" x2="21" y2="8"/>
                 <line x1="3" y1="19" x2="21" y2="19"/>
             </svg>
             Blank Letterhead
+        </a>
+
+        <div class="nav-label" style="margin-top: 12px;">Team</div>
+
+        <a class="nav-item" id="nav-team" href="#"
+           onclick="showTab('team', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                <path d="M21 21v-2a4 4 0 0 0-3-3.87"/>
+            </svg>
+            Manage Team
         </a>
     </nav>
 
@@ -85,9 +98,9 @@ $default_month = date('Y-m');
             <div class="card">
                 <div class="card-title">Offer Letter Generator</div>
                 <div class="card-subtitle">
-                    Select the employee and fill in the details below. Click <strong>Generate</strong>
-                    to open a print-ready employment agreement in a new tab &mdash; then use
-                    <strong>Print &rarr; Save as PDF</strong>.
+                    Select an employee below. If the name is not in the list, go to
+                    <strong>Manage Team</strong> to add them first.
+                    Then click <strong>Generate</strong> and use <strong>Print &rarr; Save as PDF</strong>.
                 </div>
 
                 <form action="generate-offer.php" method="POST" target="_blank">
@@ -97,7 +110,7 @@ $default_month = date('Y-m');
                         <div class="form-group">
                             <label>Full Name *</label>
                             <select name="employee_name" id="offer-name"
-                                    onchange="syncOfferDesignation()" required>
+                                    onchange="syncDesignation('offer')" required>
                                 <option value="">— Select Employee —</option>
                             </select>
                         </div>
@@ -113,13 +126,11 @@ $default_month = date('Y-m');
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Letter Date *</label>
-                            <input type="date" name="letter_date"
-                                   value="<?= $default_date ?>" required>
+                            <input type="date" name="letter_date" value="<?= $default_date ?>" required>
                         </div>
                         <div class="form-group">
                             <label>Start Date *</label>
-                            <input type="date" name="start_date"
-                                   value="<?= $default_date ?>" required>
+                            <input type="date" name="start_date" value="<?= $default_date ?>" required>
                         </div>
                     </div>
 
@@ -127,13 +138,11 @@ $default_month = date('Y-m');
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Basic Salary (Rs.) *</label>
-                            <input type="number" name="basic_salary" min="0"
-                                   placeholder="e.g. 45000" required>
+                            <input type="number" name="basic_salary" min="0" placeholder="e.g. 45000" required>
                         </div>
                         <div class="form-group">
                             <label>Allowance (Rs.)</label>
-                            <input type="number" name="travel_allowance" min="0"
-                                   value="5000">
+                            <input type="number" name="travel_allowance" min="0" value="5000">
                         </div>
                     </div>
 
@@ -141,16 +150,13 @@ $default_month = date('Y-m');
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Signing Authority Name</label>
-                            <input type="text" name="signatory"
-                                   value="Kuldeep Kumar">
+                            <input type="text" name="signatory" value="Kuldeep Kumar">
                         </div>
                     </div>
 
                     <button type="submit" class="btn-generate">
-                        <svg width="16" height="16" fill="none" stroke="currentColor"
-                             stroke-width="2" viewBox="0 0 24 24">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12
-                                     a2 2 0 0 0 2-2V8z"/>
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12 a2 2 0 0 0 2-2V8z"/>
                             <polyline points="14 2 14 8 20 8"/>
                         </svg>
                         Generate Offer Letter
@@ -177,7 +183,7 @@ $default_month = date('Y-m');
                         <div class="form-group">
                             <label>Full Name *</label>
                             <select name="employee_name" id="payslip-name"
-                                    onchange="syncPayslipDesignation()" required>
+                                    onchange="syncDesignation('payslip')" required>
                                 <option value="">— Select Employee —</option>
                             </select>
                         </div>
@@ -189,8 +195,7 @@ $default_month = date('Y-m');
                         </div>
                         <div class="form-group">
                             <label>Pay Period *</label>
-                            <input type="month" name="pay_period"
-                                   value="<?= $default_month ?>" required>
+                            <input type="month" name="pay_period" value="<?= $default_month ?>" required>
                         </div>
                     </div>
 
@@ -198,23 +203,19 @@ $default_month = date('Y-m');
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Basic Salary (Rs.) *</label>
-                            <input type="number" name="basic_salary" min="0"
-                                   placeholder="e.g. 45000" required>
+                            <input type="number" name="basic_salary" min="0" placeholder="e.g. 45000" required>
                         </div>
                         <div class="form-group">
                             <label>Allowance (Rs.)</label>
-                            <input type="number" name="allowance" min="0"
-                                   value="5000">
+                            <input type="number" name="allowance" min="0" value="5000">
                         </div>
                         <div class="form-group">
                             <label>Commission (Rs.)</label>
-                            <input type="number" name="commission" min="0"
-                                   value="0">
+                            <input type="number" name="commission" min="0" value="0">
                         </div>
                         <div class="form-group">
                             <label>Performer Bonus (Rs.)</label>
-                            <input type="number" name="performer_bonus" min="0"
-                                   value="0">
+                            <input type="number" name="performer_bonus" min="0" value="0">
                         </div>
                     </div>
 
@@ -243,8 +244,7 @@ $default_month = date('Y-m');
                     </div>
 
                     <button type="submit" class="btn-generate">
-                        <svg width="16" height="16" fill="none" stroke="currentColor"
-                             stroke-width="2" viewBox="0 0 24 24">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <rect x="2" y="5" width="20" height="14" rx="2"/>
                             <line x1="2" y1="10" x2="22" y2="10"/>
                         </svg>
@@ -254,70 +254,225 @@ $default_month = date('Y-m');
             </div>
         </div>
 
+        <!-- ─────────────────────────────────────
+             MANAGE TEAM
+        ───────────────────────────────────── -->
+        <div id="tab-team" class="tab-content">
+
+            <!-- Add Employee -->
+            <div class="card" style="margin-bottom: 24px;">
+                <div class="card-title">Add Team Member</div>
+                <div class="card-subtitle">
+                    Saved employees appear instantly in the dropdowns on the Offer Letter and Payslip forms.
+                </div>
+
+                <div id="team-alert" class="team-alert"></div>
+
+                <form id="add-emp-form" onsubmit="addEmployee(event)">
+                    <div class="section-label">Employee Details</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Full Name *</label>
+                            <input type="text" id="add-name"
+                                   placeholder="e.g. Zunhara Jamil" autocomplete="off" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Designation *</label>
+                            <input type="text" id="add-designation"
+                                   list="desig-suggestions"
+                                   placeholder="e.g. Reverse Recruiting Agent" autocomplete="off" required>
+                            <datalist id="desig-suggestions"></datalist>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-generate">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Add to Team
+                    </button>
+                </form>
+            </div>
+
+            <!-- Employee List -->
+            <div class="card">
+                <div class="card-title">Team Members</div>
+                <div class="card-subtitle">
+                    All saved employees. Removing a member only removes them from this list &mdash;
+                    it does not delete any generated documents.
+                </div>
+                <div id="employee-list"></div>
+            </div>
+
+        </div>
+
     </div><!-- /content-area -->
 </div><!-- /main -->
 
 <script>
-// ══════════════════════════════════════════════════════════════════════
-//  TEAM MEMBERS — Add your employees here
-//  Format: { name: "Full Name", designation: "Job Title" }
-// ══════════════════════════════════════════════════════════════════════
-const teamMembers = [
-    { name: "Zunhara Jamil",  designation: "Reverse Recruiting Agent" },
-    { name: "Ali Haider",     designation: "Lead Recruitment Executive" },
-    // Add more team members below:
-    // { name: "Full Name", designation: "Designation" },
-];
+// ── Employees loaded from PHP (server-side) ────────────────────────────────
+var teamMembers = <?= json_encode(array_values($employees)) ?>;
 
-// ── Populate dropdowns on page load ──────────────────────────────────
-(function () {
-    const uniqueDesignations = [...new Set(teamMembers.map(m => m.designation))];
-
-    const offerName = document.getElementById('offer-name');
-    const offerPos  = document.getElementById('offer-position');
-    const payName   = document.getElementById('payslip-name');
-    const payDes    = document.getElementById('payslip-designation');
-
-    teamMembers.forEach(function (m) {
-        offerName.add(new Option(m.name, m.name));
-        payName.add(new Option(m.name, m.name));
-    });
-
-    uniqueDesignations.forEach(function (d) {
-        offerPos.add(new Option(d, d));
-        payDes.add(new Option(d, d));
-    });
+// ── On page load: build all dropdowns + employee list ─────────────────────
+(function init() {
+    rebuildDropdowns();
+    renderEmployeeList();
 })();
 
-// ── Auto-fill designation when name is selected ───────────────────────
-function syncOfferDesignation() {
-    var selected = document.getElementById('offer-name').value;
-    var member   = teamMembers.find(function (m) { return m.name === selected; });
-    if (member) {
-        document.getElementById('offer-position').value = member.designation;
+// ── Rebuild all dropdowns from teamMembers ────────────────────────────────
+function rebuildDropdowns() {
+    var uniqueDesig = [];
+    teamMembers.forEach(function(m) {
+        if (uniqueDesig.indexOf(m.designation) === -1) uniqueDesig.push(m.designation);
+    });
+    uniqueDesig.sort();
+
+    // Name selects
+    ['offer-name', 'payslip-name'].forEach(function(id) {
+        var sel = document.getElementById(id);
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">— Select Employee —</option>';
+        teamMembers.forEach(function(m) { sel.add(new Option(m.name, m.name)); });
+        if (cur) sel.value = cur;
+    });
+
+    // Designation selects
+    ['offer-position', 'payslip-designation'].forEach(function(id) {
+        var sel = document.getElementById(id);
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">— Select Designation —</option>';
+        uniqueDesig.forEach(function(d) { sel.add(new Option(d, d)); });
+        if (cur) sel.value = cur;
+    });
+
+    // Datalist in Manage Team
+    var dl = document.getElementById('desig-suggestions');
+    if (dl) {
+        dl.innerHTML = '';
+        uniqueDesig.forEach(function(d) {
+            var opt = document.createElement('option');
+            opt.value = d;
+            dl.appendChild(opt);
+        });
     }
 }
 
-function syncPayslipDesignation() {
-    var selected = document.getElementById('payslip-name').value;
-    var member   = teamMembers.find(function (m) { return m.name === selected; });
-    if (member) {
-        document.getElementById('payslip-designation').value = member.designation;
-    }
+// ── Auto-fill designation when name is selected ───────────────────────────
+function syncDesignation(form) {
+    var nameEl = document.getElementById(form + '-name');
+    var desEl  = form === 'offer' ? document.getElementById('offer-position')
+                                  : document.getElementById('payslip-designation');
+    var member = teamMembers.find(function(m) { return m.name === nameEl.value; });
+    if (member) desEl.value = member.designation;
 }
 
-// ── Tab switching ─────────────────────────────────────────────────────
+// ── Render employee list table ────────────────────────────────────────────
+function renderEmployeeList() {
+    var container = document.getElementById('employee-list');
+    if (!container) return;
+
+    if (teamMembers.length === 0) {
+        container.innerHTML = '<p class="emp-empty">No team members yet. Add one above.</p>';
+        return;
+    }
+
+    var html = '<table class="emp-table">'
+             + '<thead><tr><th>Name</th><th>Designation</th><th></th></tr></thead>'
+             + '<tbody>';
+
+    teamMembers.forEach(function(m) {
+        html += '<tr>'
+              + '<td>' + esc(m.name) + '</td>'
+              + '<td>' + esc(m.designation) + '</td>'
+              + '<td><button class="btn-delete" data-name="' + esc(m.name) + '"'
+              + ' onclick="deleteEmployee(this.dataset.name)">Remove</button></td>'
+              + '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+// ── Add employee (AJAX) ───────────────────────────────────────────────────
+function addEmployee(e) {
+    e.preventDefault();
+    var name        = document.getElementById('add-name').value.trim();
+    var designation = document.getElementById('add-designation').value.trim();
+
+    if (!name || !designation) {
+        showAlert('error', 'Please fill in both name and designation.');
+        return;
+    }
+
+    fetch('employees-api.php', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'add', name: name, designation: designation })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) {
+            showAlert('error', data.error);
+        } else {
+            teamMembers = data.employees;
+            rebuildDropdowns();
+            renderEmployeeList();
+            document.getElementById('add-name').value        = '';
+            document.getElementById('add-designation').value = '';
+            showAlert('success', name + ' added successfully.');
+        }
+    })
+    .catch(function() { showAlert('error', 'Could not save. Please try again.'); });
+}
+
+// ── Delete employee (AJAX) ────────────────────────────────────────────────
+function deleteEmployee(name) {
+    if (!confirm('Remove "' + name + '" from the team list?')) return;
+
+    fetch('employees-api.php', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'delete', name: name })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) {
+            showAlert('error', data.error);
+        } else {
+            teamMembers = data.employees;
+            rebuildDropdowns();
+            renderEmployeeList();
+            showAlert('success', name + ' removed.');
+        }
+    })
+    .catch(function() { showAlert('error', 'Could not remove. Please try again.'); });
+}
+
+// ── Alert banner ──────────────────────────────────────────────────────────
+function showAlert(type, msg) {
+    var el = document.getElementById('team-alert');
+    el.className = 'team-alert ' + type;
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(el._timer);
+    el._timer = setTimeout(function() { el.style.display = 'none'; }, 3500);
+}
+
+// ── HTML escape helper ────────────────────────────────────────────────────
+function esc(str) {
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
 function showTab(tab, el) {
-    document.querySelectorAll('.tab-content').forEach(function (t) {
-        t.classList.remove('active');
-    });
-    document.querySelectorAll('.nav-item').forEach(function (n) {
-        n.classList.remove('active');
-    });
+    document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
     document.getElementById('tab-' + tab).classList.add('active');
     el.classList.add('active');
-    var titles = { offer: 'Generate Offer Letter', payslip: 'Generate Payslip' };
-    document.getElementById('page-title').textContent = titles[tab];
+    var titles = { offer: 'Generate Offer Letter', payslip: 'Generate Payslip', team: 'Manage Team' };
+    document.getElementById('page-title').textContent = titles[tab] || '';
 }
 </script>
 

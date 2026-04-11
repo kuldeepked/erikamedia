@@ -284,3 +284,78 @@ nav {
     align-items: flex-start;
     gap: 10px;
 }
+
+/* ── Employee Table ── */
+.emp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.emp-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: #6b7a90;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0 12px 10px;
+    border-bottom: 1.5px solid #e4e9f0;
+}
+
+.emp-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #f0f3f8;
+    color: #333;
+}
+
+.emp-table tr:last-child td { border-bottom: none; }
+.emp-table tbody tr:hover td { background: #f7f9ff; }
+
+.emp-empty {
+    color: #9aa3b0;
+    font-size: 13px;
+    text-align: center;
+    padding: 28px 0;
+}
+
+/* ── Delete Button ── */
+.btn-delete {
+    padding: 5px 13px;
+    background: transparent;
+    color: #e74c3c;
+    border: 1.5px solid #e74c3c;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+    font-family: inherit;
+}
+
+.btn-delete:hover {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* ── Team Alert ── */
+.team-alert {
+    display: none;
+    padding: 11px 16px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 18px;
+}
+
+.team-alert.success {
+    background: #eafaf1;
+    border: 1px solid #a9dfbf;
+    color: #1e8449;
+}
+
+.team-alert.error {
+    background: #fdf3f2;
+    border: 1px solid #f5b7b1;
+    color: #c0392b;
+}
