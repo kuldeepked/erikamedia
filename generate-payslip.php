@@ -100,6 +100,8 @@ while (count($ded_rows)  < $max_rows) $ded_rows[]  = ['', 0];
     <meta charset="UTF-8">
     <title>Payslip — <?= $employee_name ?> — <?= $pay_period ?></title>
     <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
         /* ── Screen wrapper ──────────────────── */
         body {
             margin: 0;
@@ -225,6 +227,7 @@ while (count($ded_rows)  < $max_rows) $ded_rows[]  = ['', 0];
             border-collapse: collapse;
             font-size: 13px;
             margin-bottom: 0;
+            table-layout: fixed;
         }
 
         .slip-table thead th {
@@ -233,18 +236,20 @@ while (count($ded_rows)  < $max_rows) $ded_rows[]  = ['', 0];
             background: #f7f7f7;
             font-weight: 700;
             color: #222;
+            overflow: hidden;
         }
 
         .slip-table thead th:nth-child(2),
         .slip-table thead th:nth-child(4) {
             text-align: right;
-            width: 90px;
         }
 
         .slip-table tbody td {
             padding: 7px 12px;
             border: 1px solid #ccc;
             color: #333;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         .slip-table tbody td:nth-child(2),
@@ -341,13 +346,14 @@ while (count($ded_rows)  < $max_rows) $ded_rows[]  = ['', 0];
             .action-bar { display: none !important; }
             .page-wrap { margin-top: 0; }
             .page {
+                box-sizing: border-box;
                 width: 100%;
                 min-height: auto;
                 margin: 0;
-                padding: 18mm 22mm;
+                padding: 14mm 16mm;
                 box-shadow: none;
             }
-            @page { size: A4; margin: 0; }
+            @page { size: A4 portrait; margin: 0; }
         }
     </style>
 </head>
@@ -406,6 +412,12 @@ while (count($ded_rows)  < $max_rows) $ded_rows[]  = ['', 0];
 
     <!-- Earnings / Deductions Table -->
     <table class="slip-table">
+        <colgroup>
+            <col style="width:35%">
+            <col style="width:15%">
+            <col style="width:35%">
+            <col style="width:15%">
+        </colgroup>
         <thead>
             <tr>
                 <th>Earnings</th>
