@@ -73,6 +73,30 @@ $net_pay          = $total_earnings - $total_deductions;
 
 $net_words = numToWords((int)round($net_pay)) . ' Rupees Only';
 
+// ── Save to history ───────────────────────────────────────────────────────────
+$_hf   = __DIR__ . '/history.json';
+$_hist = file_exists($_hf) ? (json_decode(file_get_contents($_hf), true) ?: []) : [];
+array_unshift($_hist, [
+    'id'              => uniqid('ps_', true),
+    'type'            => 'payslip',
+    'employee_name'   => trim($_POST['employee_name']    ?? ''),
+    'designation'     => trim($_POST['designation']      ?? ''),
+    'pay_period'      => $pay_period_raw,
+    'basic_salary'    => $basic_salary,
+    'allowance'       => $allowance,
+    'commission'      => $commission,
+    'performer_bonus' => $performer_bonus,
+    'provident_fund'  => $provident_fund,
+    'eobi'            => $eobi,
+    'loan'            => $loan,
+    'professional_tax'=> $professional_tax,
+    'absent_late'     => $absent_late,
+    'generated_at'    => date('Y-m-d H:i:s'),
+]);
+if (count($_hist) > 200) $_hist = array_slice($_hist, 0, 200);
+file_put_contents($_hf, json_encode($_hist, JSON_PRETTY_PRINT));
+unset($_hf, $_hist);
+
 // Build earnings rows (always show salary & allowance; others only if > 0)
 $earn_rows = [
     ['Salary',          $basic_salary],

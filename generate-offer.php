@@ -20,6 +20,25 @@ $total         = $basic_salary + $travel_allowance;
 $salary_fmt    = 'Rs. ' . number_format($basic_salary,     0, '.', ',');
 $allowance_fmt = 'Rs. ' . number_format($travel_allowance, 0, '.', ',');
 $total_fmt     = 'Rs. ' . number_format($total,            0, '.', ',');
+
+// ── Save to history ───────────────────────────────────────────────────────────
+$_hf   = __DIR__ . '/history.json';
+$_hist = file_exists($_hf) ? (json_decode(file_get_contents($_hf), true) ?: []) : [];
+array_unshift($_hist, [
+    'id'               => uniqid('of_', true),
+    'type'             => 'offer',
+    'employee_name'    => trim($_POST['employee_name']     ?? ''),
+    'position'         => trim($_POST['position']          ?? ''),
+    'letter_date'      => $letter_date_raw,
+    'start_date'       => $start_date_raw,
+    'basic_salary'     => $basic_salary,
+    'travel_allowance' => $travel_allowance,
+    'signatory'        => trim($_POST['signatory']         ?? 'Kuldeep Kumar'),
+    'generated_at'     => date('Y-m-d H:i:s'),
+]);
+if (count($_hist) > 200) $_hist = array_slice($_hist, 0, 200);
+file_put_contents($_hf, json_encode($_hist, JSON_PRETTY_PRINT));
+unset($_hf, $_hist);
 ?>
 <!DOCTYPE html>
 <html lang="en">

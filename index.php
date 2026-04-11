@@ -59,6 +59,15 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             Blank Letterhead
         </a>
 
+        <a class="nav-item" id="nav-history" href="#"
+           onclick="showTab('history', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            History
+        </a>
+
         <div class="nav-label" style="margin-top: 12px;">Team</div>
 
         <a class="nav-item" id="nav-team" href="#"
@@ -251,6 +260,20 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                         Generate Payslip
                     </button>
                 </form>
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────
+             HISTORY
+        ───────────────────────────────────── -->
+        <div id="tab-history" class="tab-content">
+            <div class="card">
+                <div class="card-title">Document History</div>
+                <div class="card-subtitle">
+                    Every generated payslip and offer letter is saved here.
+                    Click <strong>Open</strong> to instantly regenerate it in a new tab.
+                </div>
+                <div id="history-list"><p class="emp-empty">Loading&hellip;</p></div>
             </div>
         </div>
 
@@ -465,14 +488,74 @@ function esc(str) {
     return d.innerHTML;
 }
 
+// ── History ───────────────────────────────────────────────────────────────────
+function loadHistoryTab() {
+    document.getElementById('history-list').innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
+    fetch('history-api.php')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderHistory(data); })
+        .catch(function() {
+            document.getElementById('history-list').innerHTML =
+                '<p class="emp-empty">Could not load history.</p>';
+        });
+}
+
+function renderHistory(records) {
+    var el = document.getElementById('history-list');
+    if (!records || records.length === 0) {
+        el.innerHTML = '<p class="emp-empty">No documents generated yet. Generate a payslip or offer letter to see it here.</p>';
+        return;
+    }
+    var html = '<table class="emp-table">'
+             + '<thead><tr><th>Type</th><th>Employee</th><th>Period / Date</th><th>Generated</th><th></th></tr></thead>'
+             + '<tbody>';
+    records.forEach(function(r) {
+        var badge = r.type === 'payslip'
+            ? '<span class="doc-badge badge-payslip">Payslip</span>'
+            : '<span class="doc-badge badge-offer">Offer Letter</span>';
+        var period = r.type === 'payslip' ? fmtPeriod(r.pay_period) : (r.letter_date || '');
+        html += '<tr>'
+              + '<td>' + badge + '</td>'
+              + '<td>' + esc(r.employee_name || '') + '</td>'
+              + '<td>' + esc(period) + '</td>'
+              + '<td>' + esc(r.generated_at || '') + '</td>'
+              + '<td style="white-space:nowrap">'
+              + '<a href="regenerate.php?id=' + encodeURIComponent(r.id) + '" target="_blank" class="btn-regen">Open</a>'
+              + '<button class="btn-delete" data-id="' + esc(r.id) + '" onclick="deleteHistory(this.dataset.id)">Delete</button>'
+              + '</td>'
+              + '</tr>';
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+}
+
+function deleteHistory(id) {
+    if (!confirm('Remove this entry from history?')) return;
+    fetch('history-api.php', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'delete', id: id })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() { loadHistoryTab(); })
+    .catch(function() { alert('Could not delete. Please try again.'); });
+}
+
+function fmtPeriod(period) {
+    if (!period) return '';
+    var d = new Date(period + '-01');
+    return d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+}
+
 // ── Tab switching ─────────────────────────────────────────────────────────
 function showTab(tab, el) {
     document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
     document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
     document.getElementById('tab-' + tab).classList.add('active');
     el.classList.add('active');
-    var titles = { offer: 'Generate Offer Letter', payslip: 'Generate Payslip', team: 'Manage Team' };
+    var titles = { offer: 'Generate Offer Letter', payslip: 'Generate Payslip', history: 'Document History', team: 'Manage Team' };
     document.getElementById('page-title').textContent = titles[tab] || '';
+    if (tab === 'history') loadHistoryTab();
 }
 </script>
 
