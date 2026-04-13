@@ -70,6 +70,8 @@
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
+            position: relative;
+            z-index: 5;
         }
 
         .logo-wrap {
@@ -119,6 +121,8 @@
             font-size: 11px;
             color: #444;
             font-family: Arial, sans-serif;
+            position: relative;
+            z-index: 5;
         }
 
         .footer-col { display: flex; align-items: flex-start; gap: 7px; }
@@ -172,8 +176,8 @@
             <span class="footer-icon">&#128205;</span>
             <div>
                 <span class="footer-label">Address</span>
-                C-15 Rahat Commercial Lane 2, DHA Phase 6<br>
-                Karachi, Sindh
+                Office No. 505, 5th Floor, Kashif Center,<br>
+                Sharah-e-Faisal, Karachi
             </div>
         </div>
         <div class="footer-col">
