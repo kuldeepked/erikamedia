@@ -250,6 +250,10 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                             <label>Absent / Late Deduction (Rs.)</label>
                             <input type="number" name="absent_late" min="0" value="0">
                         </div>
+                        <div class="form-group">
+                            <label>Penalty (Rs.)</label>
+                            <input type="number" name="penalty" min="0" value="0">
+                        </div>
                     </div>
 
                     <button type="submit" class="btn-generate">

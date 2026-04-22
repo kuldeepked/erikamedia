@@ -66,9 +66,10 @@ $eobi            = (float)($_POST['eobi']            ?? 0);
 $loan            = (float)($_POST['loan']            ?? 0);
 $professional_tax= (float)($_POST['professional_tax']?? 0);
 $absent_late     = (float)($_POST['absent_late']     ?? 0);
+$penalty         = (float)($_POST['penalty']         ?? 0);
 
 $total_earnings   = $basic_salary + $allowance + $commission + $performer_bonus;
-$total_deductions = $provident_fund + $eobi + $loan + $professional_tax + $absent_late;
+$total_deductions = $provident_fund + $eobi + $loan + $professional_tax + $absent_late + $penalty;
 $net_pay          = $total_earnings - $total_deductions;
 
 $net_words = numToWords((int)round($net_pay)) . ' Rupees Only';
@@ -91,6 +92,7 @@ array_unshift($_hist, [
     'loan'            => $loan,
     'professional_tax'=> $professional_tax,
     'absent_late'     => $absent_late,
+    'penalty'         => $penalty,
     'generated_at'    => date('Y-m-d H:i:s'),
 ]);
 if (count($_hist) > 200) $_hist = array_slice($_hist, 0, 200);
@@ -112,6 +114,7 @@ if ($eobi            > 0) $ded_rows[] = ['EOBI',            $eobi];
 if ($loan            > 0) $ded_rows[] = ['Loan',            $loan];
 if ($professional_tax> 0) $ded_rows[] = ['Professional Tax',$professional_tax];
 if ($absent_late     > 0) $ded_rows[] = ['Absent/Late',     $absent_late];
+if ($penalty         > 0) $ded_rows[] = ['Penalty',         $penalty];
 
 // Pad to same length so the table rows line up
 $max_rows = max(count($earn_rows), count($ded_rows), 4); // minimum 4 body rows

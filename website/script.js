@@ -171,18 +171,38 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault();
 
             var btn = form.querySelector('button[type="submit"]');
-            var originalText = btn.innerHTML;
+            var originalHTML = btn.innerHTML;
             btn.innerHTML = 'Sending&hellip;';
             btn.disabled  = true;
 
-            // Simulate send (replace with your backend / Formspree endpoint)
-            setTimeout(function () {
-                form.reset();
-                btn.innerHTML = originalText;
-                btn.disabled  = false;
-                success.style.display = 'block';
-                setTimeout(function () { success.style.display = 'none'; }, 5000);
-            }, 1200);
+            var data = new FormData(form);
+
+            fetch('contact.php', { method: 'POST', body: data })
+                .then(function (res) { return res.json(); })
+                .then(function (json) {
+                    if (json.ok) {
+                        form.reset();
+                        success.textContent = '✅ Message sent! We\'ll get back to you within 24 hours.';
+                        success.style.color = '';
+                        success.style.display = 'block';
+                        setTimeout(function () { success.style.display = 'none'; }, 6000);
+                    } else {
+                        success.textContent = '⚠️ ' + (json.error || 'Something went wrong. Please try again.');
+                        success.style.color = '#e74c3c';
+                        success.style.display = 'block';
+                        setTimeout(function () { success.style.display = 'none'; }, 6000);
+                    }
+                })
+                .catch(function () {
+                    success.textContent = '⚠️ Could not send message. Please email us directly.';
+                    success.style.color = '#e74c3c';
+                    success.style.display = 'block';
+                    setTimeout(function () { success.style.display = 'none'; }, 6000);
+                })
+                .finally(function () {
+                    btn.innerHTML = originalHTML;
+                    btn.disabled  = false;
+                });
         });
     }
 
