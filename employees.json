@@ -1,10 +1,122 @@
 [
     {
+        "name": "Ali Haider",
+        "designation": "Team Lead",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Ali Shah",
+        "designation": "Reverse Recruiting Agent",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Haseeb Ahmed",
+        "designation": "Reverse Recruiting Agent",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Inam",
+        "designation": "Operations",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Jayshree Krishna",
+        "designation": "Reverse Recruiting Agent",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Jewel Travasso",
+        "designation": "Reverse Recruiting Agent",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Maryun",
+        "designation": "Team Lead",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Mumtaz",
+        "designation": "Office Boy",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
         "name": "Sara Khan",
-        "designation": "Reverse Recruiting Agent"
+        "designation": "Reverse Recruiting Agent",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Sufiyan Rashid",
+        "designation": "Reverse Recruiting Agent",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
     },
     {
         "name": "Zahra Khan",
-        "designation": "Reverse Recruiting Agent"
+        "designation": "Reverse Recruiting Agent",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
+    },
+    {
+        "name": "Zunhara Jamil",
+        "designation": "Reverse Recruiting Agent",
+        "basic_salary": 0,
+        "allowance": 5000,
+        "punctuality_bonus": 0,
+        "provident_fund": 0,
+        "eobi": 370,
+        "professional_tax": 0
     }
 ]

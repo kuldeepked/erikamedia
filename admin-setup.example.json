@@ -1,0 +1,5 @@
+{
+    "_comment": "Copy this file to .admin.json and replace password_hash with the output of: php -r \"echo password_hash('YOUR_PASSWORD_HERE', PASSWORD_BCRYPT, ['cost' => 12]);\"",
+    "username": "you@example.com",
+    "password_hash": "$2y$12$REPLACE_WITH_BCRYPT_HASH_OF_YOUR_PASSWORD"
+}

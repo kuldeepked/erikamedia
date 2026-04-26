@@ -1,8 +1,12 @@
 <?php
+require_once __DIR__ . '/auth.php';
+requireLogin();
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: index.php');
     exit;
 }
+verifyCsrf();
 
 $employee_name    = htmlspecialchars(trim($_POST['employee_name']    ?? ''), ENT_QUOTES);
 $position         = htmlspecialchars(trim($_POST['position']         ?? 'Reverse Recruiting Agent'), ENT_QUOTES);

@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────
+# Erika Media HR Dashboard — Apache config for IONOS
+# Protects data files, forces HTTPS, and adds security headers.
+# ─────────────────────────────────────────────────────────────────
+
+# Disable directory listing
+Options -Indexes
+
+# ── Block direct access to all JSON data files ──
+<FilesMatch "\.(json|log|md)$">
+    Require all denied
+</FilesMatch>
+
+# ── Block access to dotfiles (.admin.json, .htaccess, etc.) ──
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# ── Force HTTPS (skip on localhost / dev) ──
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteCond %{HTTP_HOST} !^localhost [NC]
+    RewriteCond %{HTTP_HOST} !^127\.0\.0\.1 [NC]
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ── Security headers ──
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+# ── Default landing: send users to login (or dashboard if already authed) ──
+DirectoryIndex index.php

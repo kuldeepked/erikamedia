@@ -1,8 +1,12 @@
 <?php
+require_once __DIR__ . '/auth.php';
+requireLogin();
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: index.php');
     exit;
 }
+verifyCsrf();
 
 // ── Number-to-words (Pakistani / South Asian format) ─────────────────────────
 function numToWords(int $n): string {
@@ -74,7 +78,18 @@ $net_pay          = $total_earnings - $total_deductions;
 
 $net_words = numToWords((int)round($net_pay)) . ' Rupees Only';
 
-// ── Save to history ───────────────────────────────────────────────────────────
+// Activity IDs that contributed to commissions / penalties / bonuses on this slip.
+// Comma-separated when submitted; we save them on the history record AND mark them
+// paid_in YYYY-MM (only on initial generation, not regeneration).
+$paid_activity_ids = [];
+if (!empty($_POST['paid_activity_ids'])) {
+    $paid_activity_ids = array_values(array_filter(
+        array_map('trim', explode(',', $_POST['paid_activity_ids']))
+    ));
+}
+
+// ── Save to history (skip when regenerating from history) ────────────────────
+if (empty($_POST['is_regen'])) :
 $_hf   = __DIR__ . '/history.json';
 $_hist = file_exists($_hf) ? (json_decode(file_get_contents($_hf), true) ?: []) : [];
 array_unshift($_hist, [
@@ -93,11 +108,28 @@ array_unshift($_hist, [
     'professional_tax'=> $professional_tax,
     'absent_late'     => $absent_late,
     'penalty'         => $penalty,
+    'paid_activity_ids' => $paid_activity_ids,
     'generated_at'    => date('Y-m-d H:i:s'),
 ]);
 if (count($_hist) > 200) $_hist = array_slice($_hist, 0, 200);
 file_put_contents($_hf, json_encode($_hist, JSON_PRETTY_PRINT));
 unset($_hf, $_hist);
+
+// Mark contributing activity entries as paid in this pay period
+if (!empty($paid_activity_ids)) {
+    $_af = __DIR__ . '/activity.json';
+    $_act = file_exists($_af) ? (json_decode(file_get_contents($_af), true) ?: []) : [];
+    $_idSet = array_flip($paid_activity_ids);
+    foreach ($_act as &$_e) {
+        if (isset($_idSet[$_e['id'] ?? ''])) {
+            $_e['paid_in'] = $pay_period_raw;
+        }
+    }
+    unset($_e);
+    file_put_contents($_af, json_encode($_act, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    unset($_af, $_act, $_idSet);
+}
+endif;
 
 // Build earnings rows (always show salary & allowance; others only if > 0)
 $earn_rows = [

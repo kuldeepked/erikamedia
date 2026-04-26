@@ -1,0 +1,8 @@
+.claude/
+.deploy/
+
+# Sensitive: contains bcrypt-hashed admin credentials. Never commit.
+.admin.json
+
+# Operational data — generated on the live site, not source-controlled.
+history.json

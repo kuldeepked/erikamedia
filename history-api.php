@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/auth.php';
+requireLogin();
+
 header('Content-Type: application/json');
 $file = __DIR__ . '/history.json';
 
@@ -13,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $input  = json_decode(file_get_contents('php://input'), true) ?? [];
     $action = $input['action'] ?? '';
 
