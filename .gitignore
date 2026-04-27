@@ -4,6 +4,9 @@
 # Sensitive: contains bcrypt-hashed admin credentials. Never commit.
 .admin.json
 
+# Sensitive: shared secret for the monthly finances cron endpoint.
+.cron-token
+
 # Operational data — generated on the live site, not source-controlled.
 history.json
 finances.json
