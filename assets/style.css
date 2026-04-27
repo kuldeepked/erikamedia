@@ -706,6 +706,23 @@ nav {
 }
 .finance-del:hover { color: #c0392b; background: #fdecec; }
 
+.topup-btn {
+    display: block;
+    width: 100%;
+    padding: 11px 16px;
+    margin: 0 0 16px;
+    background: #fff8e1;
+    color: #7a5b00;
+    border: 1px dashed #d4b75e;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+}
+.topup-btn:hover { background: #fff1c4; border-color: #b89640; }
+
 /* ── Mobile responsive (so the dashboard is usable on a phone for quick entries) ── */
 @media (max-width: 768px) {
     body { display: block; }

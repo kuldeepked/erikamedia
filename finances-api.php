@@ -2,10 +2,26 @@
 require_once __DIR__ . '/auth.php';
 requireLogin();
 
-$file = __DIR__ . '/finances.json';
+const FIN_VALID_TYPES = ['in', 'out'];
+const FIN_TYPE_LABELS = ['in' => 'Money In', 'out' => 'Money Out'];
+const FIN_LEDGERS     = ['finances' => 'finances.json', 'petty' => 'petty-cash.json'];
 
-const FIN_VALID_TYPES  = ['in', 'out'];
-const FIN_TYPE_LABELS  = ['in' => 'Money In', 'out' => 'Money Out'];
+function ledgerFile(string $ledger): string {
+    if (!isset(FIN_LEDGERS[$ledger])) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Invalid ledger.']);
+        exit;
+    }
+    return __DIR__ . '/' . FIN_LEDGERS[$ledger];
+}
+
+$input = $_SERVER['REQUEST_METHOD'] === 'POST'
+       ? (json_decode(file_get_contents('php://input'), true) ?? [])
+       : [];
+
+$ledger = trim((string) ($_GET['ledger'] ?? $input['ledger'] ?? 'finances'));
+$file   = ledgerFile($ledger);
 
 function loadFinances(string $file): array {
     if (!file_exists($file)) return [];
@@ -41,9 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 
     if (($_GET['export'] ?? '') === 'csv') {
-        $tag = $month !== '' ? $month : 'all';
+        $tag        = $month !== '' ? $month : 'all';
+        $ledgerSlug = $ledger === 'petty' ? 'petty-cash' : 'finances';
         header('Content-Type: text/csv; charset=UTF-8');
-        header('Content-Disposition: attachment; filename="erika-finances-' . $tag . '.csv"');
+        header('Content-Disposition: attachment; filename="erika-' . $ledgerSlug . '-' . $tag . '.csv"');
         $fp = fopen('php://output', 'w');
         fputcsv($fp, ['Date', 'Type', 'Description', 'Amount (Rs)']);
         foreach ($entries as $e) {
@@ -72,7 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
     header('Content-Type: application/json');
 
-    $input   = json_decode(file_get_contents('php://input'), true) ?? [];
     $action  = trim($input['action'] ?? '');
     $entries = loadFinances($file);
 

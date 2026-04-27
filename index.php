@@ -102,6 +102,16 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             Finances
         </a>
 
+        <a class="nav-item" id="nav-petty" href="#"
+           onclick="showTab('petty', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="2" y="6" width="20" height="14" rx="2"/>
+                <circle cx="12" cy="13" r="3"/>
+                <path d="M6 10h.01M18 10h.01"/>
+            </svg>
+            Petty Cash
+        </a>
+
         <div class="nav-label" style="margin-top: 12px;">Account</div>
 
         <a class="nav-item" href="change-password.php">
@@ -628,6 +638,101 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
 
         </div>
 
+        <!-- ─────────────────────────────────────
+             PETTY CASH
+        ───────────────────────────────────── -->
+        <div id="tab-petty" class="tab-content">
+
+            <!-- Quick Entry -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-title">Petty Cash &mdash; Quick Entry</div>
+                <div class="card-subtitle">
+                    Tracks the monthly Rs. 50,000 office allocation separately from main business finances.
+                    Use the top-up button each month, or log it manually when received.
+                </div>
+
+                <div id="petty-alert" class="team-alert"></div>
+
+                <button type="button" class="topup-btn" onclick="prefillPettyTopUp()">
+                    + Top up Rs. 50,000 (monthly allocation)
+                </button>
+
+                <form id="add-petty-form" onsubmit="addPettyEntry(event)">
+                    <div class="finance-type-toggle">
+                        <button type="button" class="finance-type-btn finance-in active"
+                                data-type="in" onclick="setPettyType('in')">
+                            <span class="ft-icon">&darr;</span>
+                            <span class="ft-label">Money In</span>
+                            <span class="ft-hint">Top-up received</span>
+                        </button>
+                        <button type="button" class="finance-type-btn finance-out"
+                                data-type="out" onclick="setPettyType('out')">
+                            <span class="ft-icon">&uarr;</span>
+                            <span class="ft-label">Money Out</span>
+                            <span class="ft-hint">Office expense paid</span>
+                        </button>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Description *</label>
+                            <input type="text" id="pty-desc" required maxlength="200"
+                                   placeholder="e.g. Tea & snacks, printer paper, courier"
+                                   autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Amount (Rs.) *</label>
+                            <input type="number" id="pty-amount" required min="1" step="any"
+                                   inputmode="decimal" placeholder="0">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-generate">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Add Entry
+                    </button>
+                </form>
+            </div>
+
+            <!-- Summary -->
+            <div class="finance-summary">
+                <div class="fin-summary-card fin-in">
+                    <div class="fin-label">Topped Up</div>
+                    <div class="fin-value" id="pty-total-in">Rs. 0</div>
+                </div>
+                <div class="fin-summary-card fin-out">
+                    <div class="fin-label">Spent</div>
+                    <div class="fin-value" id="pty-total-out">Rs. 0</div>
+                </div>
+                <div class="fin-summary-card fin-net" id="pty-net-card">
+                    <div class="fin-label">Cash on Hand</div>
+                    <div class="fin-value" id="pty-total-net">Rs. 0</div>
+                </div>
+            </div>
+
+            <!-- Entries -->
+            <div class="card">
+                <div class="card-title">Entries</div>
+                <div class="card-subtitle">
+                    Filter by month or export to CSV.
+                </div>
+
+                <div class="finance-controls">
+                    <input type="month" id="pty-filter-month" onchange="loadPettyTab()">
+                    <button type="button" class="finance-clear-filter" onclick="clearPettyFilter()">All months</button>
+                    <a id="pty-export-link" href="finances-api.php?ledger=petty&export=csv" class="finance-export">
+                        Export CSV
+                    </a>
+                </div>
+
+                <div id="petty-list"><p class="emp-empty">Loading&hellip;</p></div>
+            </div>
+
+        </div>
+
     </div><!-- /content-area -->
 </div><!-- /main -->
 
@@ -1137,11 +1242,13 @@ function showTab(tab, el) {
         activity: 'Activity Log',
         team:     'Manage Team',
         finances: 'Finances',
+        petty:    'Petty Cash',
     };
     document.getElementById('page-title').textContent = titles[tab] || '';
     if (tab === 'history')  loadHistoryTab();
     if (tab === 'activity') loadActivityList();
     if (tab === 'finances') loadFinancesTab();
+    if (tab === 'petty')    loadPettyTab();
 }
 
 // ── Finances ──────────────────────────────────────────────────────────────
@@ -1244,6 +1351,113 @@ function deleteFinanceEntry(id) {
 function clearFinanceFilter() {
     document.getElementById('fin-filter-month').value = '';
     loadFinancesTab();
+}
+
+// ── Petty Cash ────────────────────────────────────────────────────────────
+// Same endpoint as Finances but with ?ledger=petty so it reads/writes
+// petty-cash.json instead of finances.json.
+var pettyType = 'in';
+
+function setPettyType(t) {
+    pettyType = t;
+    document.querySelectorAll('#tab-petty .finance-type-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelector('#tab-petty .finance-type-btn[data-type="' + t + '"]').classList.add('active');
+}
+
+function showPettyAlert(msg, ok) {
+    var el = document.getElementById('petty-alert');
+    el.className = 'team-alert ' + (ok ? 'success' : 'error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    if (ok) setTimeout(function() { el.style.display = 'none'; }, 3000);
+}
+
+function prefillPettyTopUp() {
+    setPettyType('in');
+    document.getElementById('pty-desc').value   = 'Monthly petty cash top-up';
+    document.getElementById('pty-amount').value = 50000;
+    document.getElementById('pty-amount').focus();
+}
+
+function addPettyEntry(e) {
+    e.preventDefault();
+    var desc   = document.getElementById('pty-desc').value.trim();
+    var amount = parseFloat(document.getElementById('pty-amount').value);
+    if (!desc || !amount || amount <= 0) {
+        showPettyAlert('Description and a positive amount are required.', false);
+        return;
+    }
+    apiPost('finances-api.php', {
+        ledger: 'petty', action: 'add', type: pettyType, amount: amount, description: desc,
+    }).then(function(d) {
+        if (d.error) return showPettyAlert(d.error, false);
+        showPettyAlert('Saved.', true);
+        document.getElementById('pty-desc').value   = '';
+        document.getElementById('pty-amount').value = '';
+        document.getElementById('pty-desc').focus();
+        loadPettyTab();
+    }).catch(function() { showPettyAlert('Network error. Try again.', false); });
+}
+
+function loadPettyTab() {
+    var month = document.getElementById('pty-filter-month').value;
+    var qs    = '?ledger=petty' + (month ? '&month=' + month : '');
+    document.getElementById('pty-export-link').href = 'finances-api.php?ledger=petty&export=csv' + (month ? '&month=' + month : '');
+    document.getElementById('petty-list').innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
+    fetch('finances-api.php' + qs)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderPettySummary(d.totals || {in:0, out:0, net:0});
+            renderPettyList(d.entries || []);
+        })
+        .catch(function() {
+            document.getElementById('petty-list').innerHTML = '<p class="emp-empty">Could not load entries.</p>';
+        });
+}
+
+function renderPettySummary(t) {
+    var fmt = function(n) { return 'Rs. ' + Math.round(n).toLocaleString(); };
+    document.getElementById('pty-total-in').textContent  = fmt(t.in);
+    document.getElementById('pty-total-out').textContent = fmt(t.out);
+    var net = t.net || 0;
+    document.getElementById('pty-total-net').textContent = (net < 0 ? '− ' : '') + fmt(Math.abs(net));
+    document.getElementById('pty-net-card').classList.toggle('fin-net-negative', net < 0);
+}
+
+function renderPettyList(entries) {
+    if (!entries.length) {
+        document.getElementById('petty-list').innerHTML =
+            '<p class="emp-empty">No petty cash entries yet for this period.</p>';
+        return;
+    }
+    var rows = entries.map(function(e) {
+        var sign = e.type === 'in' ? '+' : '−';
+        var cls  = e.type === 'in' ? 'fin-row-in' : 'fin-row-out';
+        return '<tr class="' + cls + '">' +
+            '<td class="fin-date">' + escFin(e.date) + '</td>' +
+            '<td class="fin-desc-cell">' + escFin(e.description) + '</td>' +
+            '<td class="num"><strong>' + sign + ' Rs. ' + Math.round(e.amount).toLocaleString() + '</strong></td>' +
+            '<td class="num"><button class="finance-del" title="Delete entry" onclick="deletePettyEntry(\'' + e.id + '\')">&times;</button></td>' +
+        '</tr>';
+    }).join('');
+    document.getElementById('petty-list').innerHTML =
+        '<div class="finance-table-wrap"><table class="finance-table">' +
+        '<thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th><th></th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
+}
+
+function deletePettyEntry(id) {
+    if (!confirm('Delete this entry? This cannot be undone.')) return;
+    apiPost('finances-api.php', { ledger: 'petty', action: 'delete', id: id })
+        .then(function(d) {
+            if (d.error) return showPettyAlert(d.error, false);
+            loadPettyTab();
+        });
+}
+
+function clearPettyFilter() {
+    document.getElementById('pty-filter-month').value = '';
+    loadPettyTab();
 }
 </script>
 
