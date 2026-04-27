@@ -130,6 +130,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'update') {
+        $id          = trim($input['id'] ?? '');
+        $type        = trim($input['type'] ?? '');
+        $description = trim((string) ($input['description'] ?? ''));
+        $amount      = (float) ($input['amount'] ?? 0);
+
+        if (!in_array($type, FIN_VALID_TYPES, true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Type must be "in" or "out".']);
+            exit;
+        }
+        if ($description === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Description is required.']);
+            exit;
+        }
+        if ($amount <= 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Amount must be greater than zero.']);
+            exit;
+        }
+        if (mb_strlen($description) > 200) {
+            $description = mb_substr($description, 0, 200);
+        }
+
+        $found = false;
+        foreach ($entries as &$e) {
+            if (($e['id'] ?? '') === $id) {
+                $e['type']        = $type;
+                $e['description'] = $description;
+                $e['amount']      = round($amount, 2);
+                // Preserve original date and created_at — only the editable fields change.
+                $found = true;
+                break;
+            }
+        }
+        unset($e);
+
+        if (!$found) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Entry not found.']);
+            exit;
+        }
+
+        saveFinances($file, $entries);
+        echo json_encode(['success' => true, 'totals' => summarizeFinances($entries)]);
+        exit;
+    }
+
     if ($action === 'delete') {
         $id     = trim($input['id'] ?? '');
         $before = count($entries);

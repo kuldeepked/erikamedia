@@ -592,13 +592,15 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                         </div>
                     </div>
 
-                    <button type="submit" class="btn-generate">
+                    <button type="submit" class="btn-generate" id="fin-submit-btn">
                         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <line x1="12" y1="5" x2="12" y2="19"/>
                             <line x1="5" y1="12" x2="19" y2="12"/>
                         </svg>
-                        Add Entry
+                        <span id="fin-submit-label">Add Entry</span>
                     </button>
+                    <button type="button" class="btn-cancel" id="fin-cancel-btn"
+                            style="display: none;" onclick="cancelFinanceEdit()">Cancel</button>
                 </form>
             </div>
 
@@ -687,13 +689,15 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                         </div>
                     </div>
 
-                    <button type="submit" class="btn-generate">
+                    <button type="submit" class="btn-generate" id="pty-submit-btn">
                         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <line x1="12" y1="5" x2="12" y2="19"/>
                             <line x1="5" y1="12" x2="19" y2="12"/>
                         </svg>
-                        Add Entry
+                        <span id="pty-submit-label">Add Entry</span>
                     </button>
+                    <button type="button" class="btn-cancel" id="pty-cancel-btn"
+                            style="display: none;" onclick="cancelPettyEdit()">Cancel</button>
                 </form>
             </div>
 
@@ -1252,12 +1256,14 @@ function showTab(tab, el) {
 }
 
 // ── Finances ──────────────────────────────────────────────────────────────
-var financeType = 'in';
+var financeType         = 'in';
+var financesEntriesCache = [];
+var financesEditingId   = null;
 
 function setFinanceType(t) {
     financeType = t;
-    document.querySelectorAll('.finance-type-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.querySelector('.finance-type-btn[data-type="' + t + '"]').classList.add('active');
+    document.querySelectorAll('#tab-finances .finance-type-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelector('#tab-finances .finance-type-btn[data-type="' + t + '"]').classList.add('active');
 }
 
 function showFinanceAlert(msg, ok) {
@@ -1276,16 +1282,39 @@ function addFinanceEntry(e) {
         showFinanceAlert('Description and a positive amount are required.', false);
         return;
     }
-    apiPost('finances-api.php', {
-        action: 'add', type: financeType, amount: amount, description: desc,
-    }).then(function(d) {
+    var payload = { action: 'add', type: financeType, amount: amount, description: desc };
+    if (financesEditingId) {
+        payload.action = 'update';
+        payload.id     = financesEditingId;
+    }
+    apiPost('finances-api.php', payload).then(function(d) {
         if (d.error) return showFinanceAlert(d.error, false);
-        showFinanceAlert('Saved.', true);
-        document.getElementById('fin-desc').value   = '';
-        document.getElementById('fin-amount').value = '';
-        document.getElementById('fin-desc').focus();
+        showFinanceAlert(financesEditingId ? 'Updated.' : 'Saved.', true);
+        cancelFinanceEdit();
         loadFinancesTab();
     }).catch(function() { showFinanceAlert('Network error. Try again.', false); });
+}
+
+function editFinanceEntry(id) {
+    var entry = financesEntriesCache.find(function(e) { return e.id === id; });
+    if (!entry) return;
+    financesEditingId = id;
+    setFinanceType(entry.type);
+    document.getElementById('fin-desc').value      = entry.description;
+    document.getElementById('fin-amount').value    = entry.amount;
+    document.getElementById('fin-submit-label').textContent = 'Save Changes';
+    document.getElementById('fin-cancel-btn').style.display = 'inline-block';
+    document.getElementById('add-finance-form').scrollIntoView({behavior: 'smooth', block: 'start'});
+    document.getElementById('fin-desc').focus();
+}
+
+function cancelFinanceEdit() {
+    financesEditingId = null;
+    document.getElementById('fin-desc').value   = '';
+    document.getElementById('fin-amount').value = '';
+    document.getElementById('fin-submit-label').textContent = 'Add Entry';
+    document.getElementById('fin-cancel-btn').style.display = 'none';
+    setFinanceType('in');
 }
 
 function loadFinancesTab() {
@@ -1314,6 +1343,7 @@ function renderFinanceSummary(t) {
 }
 
 function renderFinanceList(entries) {
+    financesEntriesCache = entries;
     if (!entries.length) {
         document.getElementById('finances-list').innerHTML =
             '<p class="emp-empty">No entries yet for this period. Add one above.</p>';
@@ -1326,7 +1356,10 @@ function renderFinanceList(entries) {
             '<td class="fin-date">' + escFin(e.date) + '</td>' +
             '<td class="fin-desc-cell">' + escFin(e.description) + '</td>' +
             '<td class="num"><strong>' + sign + ' Rs. ' + Math.round(e.amount).toLocaleString() + '</strong></td>' +
-            '<td class="num"><button class="finance-del" title="Delete entry" onclick="deleteFinanceEntry(\'' + e.id + '\')">&times;</button></td>' +
+            '<td class="fin-actions">' +
+                '<button class="finance-edit" title="Edit" onclick="editFinanceEntry(\'' + e.id + '\')">Edit</button>' +
+                '<button class="finance-del"  title="Delete" onclick="deleteFinanceEntry(\'' + e.id + '\')">Delete</button>' +
+            '</td>' +
         '</tr>';
     }).join('');
     document.getElementById('finances-list').innerHTML =
@@ -1356,7 +1389,9 @@ function clearFinanceFilter() {
 // ── Petty Cash ────────────────────────────────────────────────────────────
 // Same endpoint as Finances but with ?ledger=petty so it reads/writes
 // petty-cash.json instead of finances.json.
-var pettyType = 'in';
+var pettyType         = 'in';
+var pettyEntriesCache = [];
+var pettyEditingId    = null;
 
 function setPettyType(t) {
     pettyType = t;
@@ -1387,16 +1422,39 @@ function addPettyEntry(e) {
         showPettyAlert('Description and a positive amount are required.', false);
         return;
     }
-    apiPost('finances-api.php', {
-        ledger: 'petty', action: 'add', type: pettyType, amount: amount, description: desc,
-    }).then(function(d) {
+    var payload = { ledger: 'petty', action: 'add', type: pettyType, amount: amount, description: desc };
+    if (pettyEditingId) {
+        payload.action = 'update';
+        payload.id     = pettyEditingId;
+    }
+    apiPost('finances-api.php', payload).then(function(d) {
         if (d.error) return showPettyAlert(d.error, false);
-        showPettyAlert('Saved.', true);
-        document.getElementById('pty-desc').value   = '';
-        document.getElementById('pty-amount').value = '';
-        document.getElementById('pty-desc').focus();
+        showPettyAlert(pettyEditingId ? 'Updated.' : 'Saved.', true);
+        cancelPettyEdit();
         loadPettyTab();
     }).catch(function() { showPettyAlert('Network error. Try again.', false); });
+}
+
+function editPettyEntry(id) {
+    var entry = pettyEntriesCache.find(function(e) { return e.id === id; });
+    if (!entry) return;
+    pettyEditingId = id;
+    setPettyType(entry.type);
+    document.getElementById('pty-desc').value      = entry.description;
+    document.getElementById('pty-amount').value    = entry.amount;
+    document.getElementById('pty-submit-label').textContent = 'Save Changes';
+    document.getElementById('pty-cancel-btn').style.display = 'inline-block';
+    document.getElementById('add-petty-form').scrollIntoView({behavior: 'smooth', block: 'start'});
+    document.getElementById('pty-desc').focus();
+}
+
+function cancelPettyEdit() {
+    pettyEditingId = null;
+    document.getElementById('pty-desc').value   = '';
+    document.getElementById('pty-amount').value = '';
+    document.getElementById('pty-submit-label').textContent = 'Add Entry';
+    document.getElementById('pty-cancel-btn').style.display = 'none';
+    setPettyType('in');
 }
 
 function loadPettyTab() {
@@ -1425,6 +1483,7 @@ function renderPettySummary(t) {
 }
 
 function renderPettyList(entries) {
+    pettyEntriesCache = entries;
     if (!entries.length) {
         document.getElementById('petty-list').innerHTML =
             '<p class="emp-empty">No petty cash entries yet for this period.</p>';
@@ -1437,7 +1496,10 @@ function renderPettyList(entries) {
             '<td class="fin-date">' + escFin(e.date) + '</td>' +
             '<td class="fin-desc-cell">' + escFin(e.description) + '</td>' +
             '<td class="num"><strong>' + sign + ' Rs. ' + Math.round(e.amount).toLocaleString() + '</strong></td>' +
-            '<td class="num"><button class="finance-del" title="Delete entry" onclick="deletePettyEntry(\'' + e.id + '\')">&times;</button></td>' +
+            '<td class="fin-actions">' +
+                '<button class="finance-edit" title="Edit" onclick="editPettyEntry(\'' + e.id + '\')">Edit</button>' +
+                '<button class="finance-del"  title="Delete" onclick="deletePettyEntry(\'' + e.id + '\')">Delete</button>' +
+            '</td>' +
         '</tr>';
     }).join('');
     document.getElementById('petty-list').innerHTML =

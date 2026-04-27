@@ -700,11 +700,25 @@ nav {
 .finance-table td.fin-date { white-space: nowrap; color: #888; font-size: 12px; }
 .finance-table tr.fin-row-in  td.num strong { color: #1e7c3a; }
 .finance-table tr.fin-row-out td.num strong { color: #c0392b; }
-.finance-del {
-    background: transparent; border: 0; color: #bbb;
-    font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 8px; border-radius: 4px;
+.fin-actions {
+    text-align: right;
+    white-space: nowrap;
 }
-.finance-del:hover { color: #c0392b; background: #fdecec; }
+.finance-edit,
+.finance-del {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #555;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+.finance-edit:hover { color: #0d1b3e; background: #eef2f7; border-color: #d6dce6; }
+.finance-del        { color: #888; }
+.finance-del:hover  { color: #c0392b; background: #fdecec; border-color: #f3c0bb; }
 
 .topup-btn {
     display: block;
