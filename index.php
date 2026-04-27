@@ -93,6 +93,15 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             Manage Team
         </a>
 
+        <a class="nav-item" id="nav-finances" href="#"
+           onclick="showTab('finances', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <line x1="12" y1="1" x2="12" y2="23"/>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+            Finances
+        </a>
+
         <div class="nav-label" style="margin-top: 12px;">Account</div>
 
         <a class="nav-item" href="change-password.php">
@@ -524,6 +533,97 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                     Click <strong>Edit</strong> to update salary, allowance or deduction defaults.
                 </div>
                 <div id="employee-list"></div>
+            </div>
+
+        </div>
+
+        <!-- ─────────────────────────────────────
+             FINANCES
+        ───────────────────────────────────── -->
+        <div id="tab-finances" class="tab-content">
+
+            <!-- Quick Entry -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-title">Quick Entry</div>
+                <div class="card-subtitle">
+                    Today's date is added automatically. Use this from anywhere &mdash;
+                    log a payment received or an expense the moment it happens.
+                </div>
+
+                <div id="finance-alert" class="team-alert"></div>
+
+                <form id="add-finance-form" onsubmit="addFinanceEntry(event)">
+                    <div class="finance-type-toggle">
+                        <button type="button" class="finance-type-btn finance-in active"
+                                data-type="in" onclick="setFinanceType('in')">
+                            <span class="ft-icon">&darr;</span>
+                            <span class="ft-label">Money In</span>
+                            <span class="ft-hint">Payment received (debit)</span>
+                        </button>
+                        <button type="button" class="finance-type-btn finance-out"
+                                data-type="out" onclick="setFinanceType('out')">
+                            <span class="ft-icon">&uarr;</span>
+                            <span class="ft-label">Money Out</span>
+                            <span class="ft-hint">Expense paid (credit)</span>
+                        </button>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Description *</label>
+                            <input type="text" id="fin-desc" required maxlength="200"
+                                   placeholder="e.g. Website payment from Acme Corp"
+                                   autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Amount (Rs.) *</label>
+                            <input type="number" id="fin-amount" required min="1" step="any"
+                                   inputmode="decimal" placeholder="0">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-generate">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Add Entry
+                    </button>
+                </form>
+            </div>
+
+            <!-- Summary -->
+            <div class="finance-summary">
+                <div class="fin-summary-card fin-in">
+                    <div class="fin-label">Money In</div>
+                    <div class="fin-value" id="fin-total-in">Rs. 0</div>
+                </div>
+                <div class="fin-summary-card fin-out">
+                    <div class="fin-label">Money Out</div>
+                    <div class="fin-value" id="fin-total-out">Rs. 0</div>
+                </div>
+                <div class="fin-summary-card fin-net" id="fin-net-card">
+                    <div class="fin-label">Net Balance</div>
+                    <div class="fin-value" id="fin-total-net">Rs. 0</div>
+                </div>
+            </div>
+
+            <!-- Entries -->
+            <div class="card">
+                <div class="card-title">Entries</div>
+                <div class="card-subtitle">
+                    Filter by month or export everything to CSV for your accountant.
+                </div>
+
+                <div class="finance-controls">
+                    <input type="month" id="fin-filter-month" onchange="loadFinancesTab()">
+                    <button type="button" class="finance-clear-filter" onclick="clearFinanceFilter()">All months</button>
+                    <a id="fin-export-link" href="finances-api.php?export=csv" class="finance-export">
+                        Export CSV
+                    </a>
+                </div>
+
+                <div id="finances-list"><p class="emp-empty">Loading&hellip;</p></div>
             </div>
 
         </div>
@@ -1036,10 +1136,114 @@ function showTab(tab, el) {
         history:  'Document History',
         activity: 'Activity Log',
         team:     'Manage Team',
+        finances: 'Finances',
     };
     document.getElementById('page-title').textContent = titles[tab] || '';
     if (tab === 'history')  loadHistoryTab();
     if (tab === 'activity') loadActivityList();
+    if (tab === 'finances') loadFinancesTab();
+}
+
+// ── Finances ──────────────────────────────────────────────────────────────
+var financeType = 'in';
+
+function setFinanceType(t) {
+    financeType = t;
+    document.querySelectorAll('.finance-type-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelector('.finance-type-btn[data-type="' + t + '"]').classList.add('active');
+}
+
+function showFinanceAlert(msg, ok) {
+    var el = document.getElementById('finance-alert');
+    el.className = 'team-alert ' + (ok ? 'success' : 'error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    if (ok) setTimeout(function() { el.style.display = 'none'; }, 3000);
+}
+
+function addFinanceEntry(e) {
+    e.preventDefault();
+    var desc   = document.getElementById('fin-desc').value.trim();
+    var amount = parseFloat(document.getElementById('fin-amount').value);
+    if (!desc || !amount || amount <= 0) {
+        showFinanceAlert('Description and a positive amount are required.', false);
+        return;
+    }
+    apiPost('finances-api.php', {
+        action: 'add', type: financeType, amount: amount, description: desc,
+    }).then(function(d) {
+        if (d.error) return showFinanceAlert(d.error, false);
+        showFinanceAlert('Saved.', true);
+        document.getElementById('fin-desc').value   = '';
+        document.getElementById('fin-amount').value = '';
+        document.getElementById('fin-desc').focus();
+        loadFinancesTab();
+    }).catch(function() { showFinanceAlert('Network error. Try again.', false); });
+}
+
+function loadFinancesTab() {
+    var month = document.getElementById('fin-filter-month').value;
+    var qs    = month ? '?month=' + month : '';
+    document.getElementById('fin-export-link').href = 'finances-api.php?export=csv' + (month ? '&month=' + month : '');
+    document.getElementById('finances-list').innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
+    fetch('finances-api.php' + qs)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderFinanceSummary(d.totals || {in:0, out:0, net:0});
+            renderFinanceList(d.entries || []);
+        })
+        .catch(function() {
+            document.getElementById('finances-list').innerHTML = '<p class="emp-empty">Could not load entries.</p>';
+        });
+}
+
+function renderFinanceSummary(t) {
+    var fmt = function(n) { return 'Rs. ' + Math.round(n).toLocaleString(); };
+    document.getElementById('fin-total-in').textContent  = fmt(t.in);
+    document.getElementById('fin-total-out').textContent = fmt(t.out);
+    var net = t.net || 0;
+    document.getElementById('fin-total-net').textContent = (net < 0 ? '− ' : '') + fmt(Math.abs(net));
+    document.getElementById('fin-net-card').classList.toggle('fin-net-negative', net < 0);
+}
+
+function renderFinanceList(entries) {
+    if (!entries.length) {
+        document.getElementById('finances-list').innerHTML =
+            '<p class="emp-empty">No entries yet for this period. Add one above.</p>';
+        return;
+    }
+    var rows = entries.map(function(e) {
+        var sign = e.type === 'in' ? '+' : '−';
+        var cls  = e.type === 'in' ? 'fin-row-in' : 'fin-row-out';
+        return '<tr class="' + cls + '">' +
+            '<td class="fin-date">' + escFin(e.date) + '</td>' +
+            '<td class="fin-desc-cell">' + escFin(e.description) + '</td>' +
+            '<td class="num"><strong>' + sign + ' Rs. ' + Math.round(e.amount).toLocaleString() + '</strong></td>' +
+            '<td class="num"><button class="finance-del" title="Delete entry" onclick="deleteFinanceEntry(\'' + e.id + '\')">&times;</button></td>' +
+        '</tr>';
+    }).join('');
+    document.getElementById('finances-list').innerHTML =
+        '<div class="finance-table-wrap"><table class="finance-table">' +
+        '<thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th><th></th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
+}
+
+function escFin(s) {
+    var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML;
+}
+
+function deleteFinanceEntry(id) {
+    if (!confirm('Delete this entry? This cannot be undone.')) return;
+    apiPost('finances-api.php', { action: 'delete', id: id })
+        .then(function(d) {
+            if (d.error) return showFinanceAlert(d.error, false);
+            loadFinancesTab();
+        });
+}
+
+function clearFinanceFilter() {
+    document.getElementById('fin-filter-month').value = '';
+    loadFinancesTab();
 }
 </script>
 
