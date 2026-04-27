@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/totp.php';
 
 if (isLoggedIn()) {
     header('Location: index.php');
@@ -31,12 +32,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             && hash_equals(strtolower($admin['username']), strtolower($username))
             && password_verify($password, $admin['password_hash'])) {
 
-            // Successful login: reset attempt counter, rotate session ID
-            session_regenerate_id(true);
-            $_SESSION['admin_user']   = $admin['username'];
-            $_SESSION['login_time']   = $now;
-            $_SESSION['failed_count'] = 0;
+            // Password OK — reset password-attempt counter regardless of 2FA path
+            $_SESSION['failed_count']       = 0;
             $_SESSION['login_locked_until'] = 0;
+
+            if (!empty($admin['totp_secret'])) {
+                // Defer login completion until verify-2fa.php accepts a code
+                $_SESSION['pending_2fa'] = [
+                    'username' => $admin['username'],
+                    'secret'   => $admin['totp_secret'],
+                    'next'     => $next,
+                ];
+                header('Location: verify-2fa.php');
+                exit;
+            }
+
+            // No 2FA configured — complete login now
+            session_regenerate_id(true);
+            $_SESSION['admin_user'] = $admin['username'];
+            $_SESSION['login_time'] = $now;
 
             header('Location: ' . $next);
             exit;
@@ -92,6 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button type="submit" class="btn-generate" style="width: 100%; justify-content: center;">
                 Sign in
             </button>
+            <div style="margin-top: 14px; text-align: center;">
+                <a href="forgot-password.php" style="color: #4a90d9; text-decoration: none; font-size: 13px;">
+                    Forgot password?
+                </a>
+            </div>
         </form>
     </div>
     <div class="login-footer">

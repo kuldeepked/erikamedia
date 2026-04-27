@@ -103,6 +103,14 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             Change Password
         </a>
 
+        <a class="nav-item" href="setup-2fa.php">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M9 12l2 2 4-4"/>
+            </svg>
+            Two-Factor Auth
+        </a>
+
         <a class="nav-item" href="logout.php">
             <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
