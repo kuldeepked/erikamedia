@@ -123,48 +123,48 @@ unset($_hf, $_hist);
         .subject-line u { font-weight: 700; letter-spacing: 0.2px; }
 
         /* ── Body text ───────────────────────────── */
-        .letter-body { font-size: 12.5px; line-height: 1.55; color: #222; }
-        .letter-body p { margin-bottom: 7px; text-align: justify; }
-        .letter-body h3 { font-size: 13px; font-weight: 700; margin: 12px 0 5px; color: #0d1b3e; }
-        .letter-body h4 { font-size: 12.5px; font-weight: 700; margin: 8px 0 3px; color: #111; display: inline; }
-        .greeting { font-size: 13.5px; font-weight: 700; margin-bottom: 7px; }
+        .letter-body { font-size: 12px; line-height: 1.5; color: #222; }
+        .letter-body p { margin-bottom: 6px; text-align: justify; }
+        .letter-body h3 { font-size: 12.5px; font-weight: 700; margin: 10px 0 4px; color: #0d1b3e; }
+        .letter-body h4 { font-size: 12px; font-weight: 700; margin: 7px 0 3px; color: #111; display: inline; }
+        .greeting { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
 
         /* Indented paragraphs for numbered sub-points */
         .sub-p {
             display: flex;
             gap: 0;
-            margin-bottom: 5px !important;
+            margin-bottom: 4px !important;
             text-align: justify;
         }
-        .sub-p .sub-num { min-width: 38px; flex-shrink: 0; font-style: normal; }
+        .sub-p .sub-num { min-width: 36px; flex-shrink: 0; font-style: normal; }
 
         /* Bullet list */
-        .letter-body ul { margin: 4px 0 8px 20px; padding: 0; }
-        .letter-body ul li { margin-bottom: 4px; text-align: justify; }
+        .letter-body ul { margin: 3px 0 6px 20px; padding: 0; }
+        .letter-body ul li { margin-bottom: 3px; text-align: justify; }
 
         /* ── Compensation table ───────────────────── */
-        .comp-table { width: 100%; border-collapse: collapse; margin: 8px 0 10px; font-size: 12px; }
-        .comp-table th { background: #0d1b3e; color: #fff; font-weight: 600; padding: 7px 14px; text-align: left; border: 1px solid #0d1b3e; }
-        .comp-table td { padding: 6px 14px; border: 1px solid #ccc; }
+        .comp-table { width: 100%; border-collapse: collapse; margin: 5px 0 7px; font-size: 11.5px; }
+        .comp-table th { background: #0d1b3e; color: #fff; font-weight: 600; padding: 5px 12px; text-align: left; border: 1px solid #0d1b3e; }
+        .comp-table td { padding: 4px 12px; border: 1px solid #ccc; }
         .comp-table .total-row td { font-weight: 700; background: #f0f4f9; }
 
         /* ── Warning text ────────────────────────── */
         .warning { color: #c0392b; font-weight: 700; }
 
         /* ── Company signature ───────────────────── */
-        .company-sig { margin-top: 26px; font-size: 12.5px; }
-        .company-sig .regards { margin-bottom: 4px; }
-        .company-sig .sig-name { font-weight: 700; font-size: 13.5px; margin-bottom: 32px; }
+        .company-sig { margin-top: 16px; font-size: 12px; }
+        .company-sig .regards { margin-bottom: 3px; }
+        .company-sig .sig-name { font-weight: 700; font-size: 13px; margin-bottom: 22px; }
 
         .sig-row-pair { display: flex; gap: 60px; margin-top: 0; }
         .sig-col { }
-        .sig-line { width: 200px; border-bottom: 1.2px solid #333; height: 20px; display: block; margin-bottom: 5px; }
-        .sig-caption { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #444; }
+        .sig-line { width: 200px; border-bottom: 1.2px solid #333; height: 18px; display: block; margin-bottom: 4px; }
+        .sig-caption { font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #444; }
 
         /* ── Employee Ack page ───────────────────── */
-        .ack-intro { font-size: 13px; margin-bottom: 44px; line-height: 1.6; }
-        .ack-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 44px 80px; }
-        .ack-line { border-bottom: 1.2px solid #333; height: 22px; margin-bottom: 6px; }
+        .ack-intro { font-size: 12.5px; margin: 18px 0 22px; line-height: 1.5; font-weight: 600; }
+        .ack-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 60px; }
+        .ack-line { border-bottom: 1.2px solid #333; height: 20px; margin-bottom: 4px; }
         .ack-label { font-size: 10.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #444; }
         .ack-full-width { grid-column: 1 / -1; max-width: 260px; }
 
@@ -174,22 +174,27 @@ unset($_hf, $_hist);
             .action-bar { display: none !important; }
             .pages-wrapper { margin-top: 0; }
 
-            /* Middle .page divs collapse to their content and flow continuously
-               so we don't waste paper on half-empty A4 sheets. */
+            /* All .page divs collapse to their content; nothing forces a fresh A4. */
             .page {
                 width: 100%;
-                min-height: auto;
+                min-height: 0;
                 margin: 0;
                 box-shadow: none;
                 overflow: visible;
             }
+            .page.cover-page, .page.ack-page { min-height: 0; page-break-after: auto; page-break-before: auto; }
 
-            /* Cover and Acknowledgment keep their full A4 layout so the
-               decorative corners sit at the actual page corners. */
-            .page.cover-page { min-height: 297mm; page-break-after: always; }
-            .page.ack-page   { min-height: 297mm; page-break-before: always; }
+            /* Drop per-.page padding — @page margin handles the printed page edges. */
+            .page-body { padding: 0 !important; }
 
-            @page { size: A4; margin: 0; }
+            /* Decorations are a screen flourish — they end up mid-page when content
+               flows continuously, so hide them on the printed copy. */
+            .deco-tr, .deco-bl, .deco-br { display: none !important; }
+
+            /* Trim ack page intro top margin (was 18mm push-down on screen) */
+            .ack-page .page-body { padding-top: 0 !important; }
+
+            @page { size: A4; margin: 14mm 14mm; }
         }
     </style>
 </head>
