@@ -264,7 +264,7 @@ unset($_hf, $_hist);
 
             <h3 style="font-size:12.5px;">4.2 After Probation (Permanent Employment)</h3>
             <ul>
-                <li>You are entitled to one (1) paid leave day per month.</li>
+                <li>You are entitled to two (2) paid leave days per month.</li>
                 <li>If you take more than two (2) days of leave in a month, salary will be deducted proportionally for each additional day.</li>
                 <li>Taking leave on the day immediately following a public holiday will result in all intervening public holidays being treated as unpaid leave, with corresponding salary deductions.</li>
                 <li>Two (2) late arrivals per month are permitted. A third late arrival will be counted as one day of absence and will be subject to deduction if applicable.</li>
