@@ -123,24 +123,24 @@ unset($_hf, $_hist);
         .subject-line u { font-weight: 700; letter-spacing: 0.2px; }
 
         /* ── Body text ───────────────────────────── */
-        .letter-body { font-size: 12.5px; line-height: 1.68; color: #222; }
-        .letter-body p { margin-bottom: 9px; text-align: justify; }
-        .letter-body h3 { font-size: 13px; font-weight: 700; margin: 15px 0 6px; color: #0d1b3e; }
-        .letter-body h4 { font-size: 12.5px; font-weight: 700; margin: 10px 0 4px; color: #111; display: inline; }
-        .greeting { font-size: 13.5px; font-weight: 700; margin-bottom: 9px; }
+        .letter-body { font-size: 12.5px; line-height: 1.55; color: #222; }
+        .letter-body p { margin-bottom: 7px; text-align: justify; }
+        .letter-body h3 { font-size: 13px; font-weight: 700; margin: 12px 0 5px; color: #0d1b3e; }
+        .letter-body h4 { font-size: 12.5px; font-weight: 700; margin: 8px 0 3px; color: #111; display: inline; }
+        .greeting { font-size: 13.5px; font-weight: 700; margin-bottom: 7px; }
 
         /* Indented paragraphs for numbered sub-points */
         .sub-p {
             display: flex;
             gap: 0;
-            margin-bottom: 6px !important;
+            margin-bottom: 5px !important;
             text-align: justify;
         }
         .sub-p .sub-num { min-width: 38px; flex-shrink: 0; font-style: normal; }
 
         /* Bullet list */
-        .letter-body ul { margin: 4px 0 10px 20px; padding: 0; }
-        .letter-body ul li { margin-bottom: 5px; text-align: justify; }
+        .letter-body ul { margin: 4px 0 8px 20px; padding: 0; }
+        .letter-body ul li { margin-bottom: 4px; text-align: justify; }
 
         /* ── Compensation table ───────────────────── */
         .comp-table { width: 100%; border-collapse: collapse; margin: 8px 0 10px; font-size: 12px; }
@@ -173,8 +173,22 @@ unset($_hf, $_hist);
             body { background: white; padding: 0; }
             .action-bar { display: none !important; }
             .pages-wrapper { margin-top: 0; }
-            .page { width: 100%; min-height: auto; margin: 0; box-shadow: none; page-break-after: always; }
-            .page:last-child { page-break-after: avoid; }
+
+            /* Middle .page divs collapse to their content and flow continuously
+               so we don't waste paper on half-empty A4 sheets. */
+            .page {
+                width: 100%;
+                min-height: auto;
+                margin: 0;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            /* Cover and Acknowledgment keep their full A4 layout so the
+               decorative corners sit at the actual page corners. */
+            .page.cover-page { min-height: 297mm; page-break-after: always; }
+            .page.ack-page   { min-height: 297mm; page-break-before: always; }
+
             @page { size: A4; margin: 0; }
         }
     </style>
@@ -188,8 +202,8 @@ unset($_hf, $_hist);
 
 <div class="pages-wrapper">
 
-<!-- ══════════════════════ PAGE 1 ══════════════════════ -->
-<div class="page">
+<!-- ══════════════════════ PAGE 1 — Cover ══════════════════════ -->
+<div class="page cover-page">
     <div class="deco-tr"><div class="deco-tr-gray"></div><div class="deco-tr-teal"></div></div>
     <div class="deco-bl"><div class="deco-bl-teal"></div></div>
     <div class="deco-br"><div class="deco-br-gray"></div></div>
@@ -325,7 +339,7 @@ unset($_hf, $_hist);
 </div>
 
 <!-- ══════════════════════ PAGE 4 — Employee Acknowledgment ══════════════════════ -->
-<div class="page">
+<div class="page ack-page">
     <div class="deco-tr"><div class="deco-tr-gray"></div><div class="deco-tr-teal"></div></div>
     <div class="deco-bl"><div class="deco-bl-teal"></div></div>
     <div class="deco-br"><div class="deco-br-gray"></div></div>
