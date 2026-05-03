@@ -102,14 +102,13 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             Finances
         </a>
 
-        <a class="nav-item" id="nav-petty" href="#"
-           onclick="showTab('petty', this); return false;">
+        <a class="nav-item" id="nav-fin-setup" href="#"
+           onclick="showTab('fin-setup', this); return false;">
             <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <rect x="2" y="6" width="20" height="14" rx="2"/>
-                <circle cx="12" cy="13" r="3"/>
-                <path d="M6 10h.01M18 10h.01"/>
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-            Petty Cash
+            Finance Setup
         </a>
 
         <div class="nav-label" style="margin-top: 12px;">Account</div>
@@ -548,193 +547,375 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
         </div>
 
         <!-- ─────────────────────────────────────
-             FINANCES
+             FINANCES (unified — books, accounts, categories, splits)
         ───────────────────────────────────── -->
         <div id="tab-finances" class="tab-content">
 
-            <!-- Quick Entry -->
-            <div class="card" style="margin-bottom: 20px;">
-                <div class="card-title">Quick Entry</div>
-                <div class="card-subtitle">
-                    Today's date is added automatically. Use this from anywhere &mdash;
-                    log a payment received or an expense the moment it happens.
+            <!-- Top: book selector + summary -->
+            <div class="finance-topbar">
+                <div class="book-selector" id="book-selector">
+                    <!-- populated from books-api.php -->
                 </div>
+                <div class="finance-actions">
+                    <button type="button" class="btn-finance-primary"  onclick="openTxForm('income')">+ Money In</button>
+                    <button type="button" class="btn-finance-secondary" onclick="openTxForm('expense')">+ Money Out</button>
+                    <button type="button" class="btn-finance-secondary" onclick="openTransferForm()">⇄ Transfer</button>
+                    <button type="button" class="btn-finance-accent"   onclick="openSplitForm()">✦ Split / Pay Across Books</button>
+                </div>
+            </div>
 
-                <div id="finance-alert" class="team-alert"></div>
+            <div id="finance-alert" class="team-alert"></div>
 
-                <form id="add-finance-form" onsubmit="addFinanceEntry(event)">
-                    <div class="finance-type-toggle">
-                        <button type="button" class="finance-type-btn finance-in active"
-                                data-type="in" onclick="setFinanceType('in')">
-                            <span class="ft-icon">&darr;</span>
-                            <span class="ft-label">Money In</span>
-                            <span class="ft-hint">Payment received (debit)</span>
-                        </button>
-                        <button type="button" class="finance-type-btn finance-out"
-                                data-type="out" onclick="setFinanceType('out')">
-                            <span class="ft-icon">&uarr;</span>
-                            <span class="ft-label">Money Out</span>
-                            <span class="ft-hint">Expense paid (credit)</span>
-                        </button>
-                    </div>
-
+            <!-- Add / edit transaction form (collapsible) -->
+            <div id="tx-form-card" class="card" style="display:none;">
+                <div class="card-title" id="tx-form-title">Add Transaction</div>
+                <form id="tx-form" onsubmit="submitTxForm(event)">
                     <div class="form-grid">
-                        <div class="form-group" style="grid-column: span 2;">
-                            <label>Description *</label>
-                            <input type="text" id="fin-desc" required maxlength="200"
-                                   placeholder="e.g. Website payment from Acme Corp"
-                                   autocomplete="off">
+                        <div class="form-group">
+                            <label>Date *</label>
+                            <input type="date" id="tx-date" required value="<?= $default_date ?>">
                         </div>
                         <div class="form-group">
-                            <label>Amount (Rs.) *</label>
-                            <input type="number" id="fin-amount" required min="1" step="any"
-                                   inputmode="decimal" placeholder="0">
+                            <label>Type *</label>
+                            <select id="tx-type" required onchange="onTxTypeChange()">
+                                <option value="income">Money In (Income)</option>
+                                <option value="expense">Money Out (Expense)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Account *</label>
+                            <select id="tx-account" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount *</label>
+                            <input type="number" id="tx-amount" required min="0.01" step="0.01" inputmode="decimal" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="tx-category"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Counterparty <span class="muted">(client / vendor / employee)</span></label>
+                            <input type="text" id="tx-counterparty" maxlength="200" autocomplete="off">
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Description / Notes</label>
+                            <input type="text" id="tx-description" maxlength="500" autocomplete="off">
                         </div>
                     </div>
-
-                    <button type="submit" class="btn-generate" id="fin-submit-btn">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <line x1="12" y1="5" x2="12" y2="19"/>
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                        <span id="fin-submit-label">Add Entry</span>
-                    </button>
-                    <button type="button" class="btn-cancel" id="fin-cancel-btn"
-                            style="display: none;" onclick="cancelFinanceEdit()">Cancel</button>
+                    <button type="submit" class="btn-generate" id="tx-submit-btn">Save</button>
+                    <button type="button" class="btn-cancel" onclick="closeTxForm()">Cancel</button>
                 </form>
             </div>
 
-            <!-- Summary -->
+            <!-- Transfer form -->
+            <div id="transfer-form-card" class="card" style="display:none;">
+                <div class="card-title">Transfer Between My Accounts (within current book)</div>
+                <div class="card-subtitle">Move money between two of your own accounts. Doesn't count as income or expense.</div>
+                <form id="transfer-form" onsubmit="submitTransferForm(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Date *</label>
+                            <input type="date" id="trn-date" required value="<?= $default_date ?>">
+                        </div>
+                        <div class="form-group">
+                            <label>Amount *</label>
+                            <input type="number" id="trn-amount" required min="0.01" step="0.01" inputmode="decimal">
+                        </div>
+                        <div class="form-group">
+                            <label>From Account *</label>
+                            <select id="trn-src" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>To Account *</label>
+                            <select id="trn-dst" required></select>
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Description</label>
+                            <input type="text" id="trn-description" maxlength="500">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-generate">Save Transfer</button>
+                    <button type="button" class="btn-cancel" onclick="closeTransferForm()">Cancel</button>
+                </form>
+            </div>
+
+            <!-- Split form: salary received with auto-split, or pay-Kuldeep cross-book -->
+            <div id="split-form-card" class="card" style="display:none;">
+                <div class="card-title" id="split-form-title">Split / Pay Across Books</div>
+                <div class="card-subtitle">
+                    Use this for salary received with the 70/10/10/10 split, or for the business paying you (or anyone)
+                    where the money lands in different buckets. Percentages are editable per occurrence.
+                </div>
+                <form id="split-form" onsubmit="submitSplitForm(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Date *</label>
+                            <input type="date" id="spl-date" required value="<?= $default_date ?>">
+                        </div>
+                        <div class="form-group">
+                            <label>Total Amount *</label>
+                            <input type="number" id="spl-total" required min="0.01" step="0.01"
+                                   inputmode="decimal" oninput="recalcSplitAmounts()">
+                        </div>
+                        <div class="form-group">
+                            <label>Currency *</label>
+                            <select id="spl-currency" onchange="renderSplitDestOptions()">
+                                <option value="PKR">PKR</option>
+                                <option value="USDT">USDT</option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="AED">AED</option>
+                                <option value="GBP">GBP</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Counterparty (e.g. Erika Media)</label>
+                            <input type="text" id="spl-counterparty" maxlength="200">
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Description</label>
+                            <input type="text" id="spl-description" maxlength="500" placeholder="e.g. May 2026 salary">
+                        </div>
+                    </div>
+
+                    <div class="split-rows-header">
+                        <span>Splits land in <strong id="spl-target-book-label">…</strong> book</span>
+                        <button type="button" class="btn-link" onclick="addSplitRow()">+ Add another split</button>
+                        <button type="button" class="btn-link" onclick="resetSplitToDefault()">Reset to 70/10/10/10</button>
+                    </div>
+                    <div id="spl-rows"></div>
+
+                    <label class="split-paired-toggle">
+                        <input type="checkbox" id="spl-pair" onchange="onPairToggle()">
+                        Also record the matching <strong id="spl-pair-label">expense on the other book</strong>
+                        (e.g. business paying salary)
+                    </label>
+                    <div id="spl-pair-fields" style="display:none;">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Source Book</label>
+                                <select id="spl-pair-book"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Source Account</label>
+                                <select id="spl-pair-account"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Source Category</label>
+                                <select id="spl-pair-category"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="split-summary">
+                        Total of splits: <strong id="spl-sum-display">0</strong>
+                        <span id="spl-sum-warn" class="split-warn"></span>
+                    </div>
+
+                    <button type="submit" class="btn-generate">Save Split</button>
+                    <button type="button" class="btn-cancel" onclick="closeSplitForm()">Cancel</button>
+                </form>
+            </div>
+
+            <!-- Summary cards -->
             <div class="finance-summary">
                 <div class="fin-summary-card fin-in">
-                    <div class="fin-label">Money In</div>
-                    <div class="fin-value" id="fin-total-in">Rs. 0</div>
+                    <div class="fin-label">Income (period)</div>
+                    <div class="fin-value" id="fin-total-in">—</div>
                 </div>
                 <div class="fin-summary-card fin-out">
-                    <div class="fin-label">Money Out</div>
-                    <div class="fin-value" id="fin-total-out">Rs. 0</div>
+                    <div class="fin-label">Expenses (period)</div>
+                    <div class="fin-value" id="fin-total-out">—</div>
                 </div>
                 <div class="fin-summary-card fin-net" id="fin-net-card">
-                    <div class="fin-label">Net Balance</div>
-                    <div class="fin-value" id="fin-total-net">Rs. 0</div>
+                    <div class="fin-label">Net (period)</div>
+                    <div class="fin-value" id="fin-total-net">—</div>
                 </div>
             </div>
 
-            <!-- Entries -->
-            <div class="card">
-                <div class="card-title">Entries</div>
-                <div class="card-subtitle">
-                    Filter by month or export everything to CSV for your accountant.
-                </div>
+            <!-- Sub-tabs -->
+            <div class="fin-subtabs">
+                <button type="button" class="fin-subtab active" data-sub="entries"   onclick="showFinSub('entries')">Entries</button>
+                <button type="button" class="fin-subtab"        data-sub="categories" onclick="showFinSub('categories')">By Category</button>
+                <button type="button" class="fin-subtab"        data-sub="accounts"  onclick="showFinSub('accounts')">Accounts</button>
+                <button type="button" class="fin-subtab"        data-sub="salaries"  onclick="showFinSub('salaries')">Salaries</button>
+                <button type="button" class="fin-subtab"        data-sub="splits"    onclick="showFinSub('splits')">Splits</button>
+            </div>
 
-                <div class="finance-controls">
-                    <input type="month" id="fin-filter-month" onchange="loadFinancesTab()">
-                    <button type="button" class="finance-clear-filter" onclick="clearFinanceFilter()">All months</button>
-                    <a id="fin-export-link" href="finances-api.php?export=csv" class="finance-export">
-                        Export CSV
-                    </a>
+            <!-- Entries sub-panel -->
+            <div id="fin-sub-entries" class="fin-subpanel active">
+                <div class="card">
+                    <div class="finance-controls">
+                        <input type="month" id="fin-filter-month" onchange="loadFinancesEntries()">
+                        <select id="fin-filter-account" onchange="loadFinancesEntries()">
+                            <option value="">All accounts</option>
+                        </select>
+                        <select id="fin-filter-category" onchange="loadFinancesEntries()">
+                            <option value="">All categories</option>
+                        </select>
+                        <button type="button" class="finance-clear-filter" onclick="clearFinanceFilter()">Clear</button>
+                        <a id="fin-export-link" href="finances-api.php?export=csv" class="finance-export">Export CSV</a>
+                    </div>
+                    <div id="finances-list"><p class="emp-empty">Loading&hellip;</p></div>
                 </div>
+            </div>
 
-                <div id="finances-list"><p class="emp-empty">Loading&hellip;</p></div>
+            <!-- By Category sub-panel -->
+            <div id="fin-sub-categories" class="fin-subpanel">
+                <div class="card">
+                    <div class="card-title">Running totals by category</div>
+                    <div class="card-subtitle">All-time totals (excludes voided entries). Click a category to see its history.</div>
+                    <div id="cat-totals-list"><p class="emp-empty">Loading&hellip;</p></div>
+                </div>
+            </div>
+
+            <!-- Accounts sub-panel -->
+            <div id="fin-sub-accounts" class="fin-subpanel">
+                <div class="card">
+                    <div class="card-title">Account balances</div>
+                    <div class="card-subtitle">Opening balance + all activity. Click an account to see its transactions.</div>
+                    <div id="account-balances-list"><p class="emp-empty">Loading&hellip;</p></div>
+                </div>
+            </div>
+
+            <!-- Salaries sub-panel -->
+            <div id="fin-sub-salaries" class="fin-subpanel">
+                <div class="card">
+                    <div class="card-title">Per-employee salary history</div>
+                    <div class="card-subtitle">All-time totals paid to each employee (across linked categories).</div>
+                    <div id="salaries-list"><p class="emp-empty">Loading&hellip;</p></div>
+                </div>
+            </div>
+
+            <!-- Splits sub-panel -->
+            <div id="fin-sub-splits" class="fin-subpanel">
+                <div class="card">
+                    <div class="card-title">Recent split events</div>
+                    <div class="card-subtitle">Each row is one money event split into multiple destinations (e.g. salary into 70/10/10/10).</div>
+                    <div id="splits-list"><p class="emp-empty">Loading&hellip;</p></div>
+                </div>
             </div>
 
         </div>
 
         <!-- ─────────────────────────────────────
-             PETTY CASH
+             FINANCE SETUP — books / accounts / categories CRUD
         ───────────────────────────────────── -->
-        <div id="tab-petty" class="tab-content">
-
-            <!-- Quick Entry -->
-            <div class="card" style="margin-bottom: 20px;">
-                <div class="card-title">Petty Cash &mdash; Quick Entry</div>
-                <div class="card-subtitle">
-                    Tracks the monthly Rs. 50,000 office allocation separately from main business finances.
-                    Use the top-up button each month, or log it manually when received.
-                </div>
-
-                <div id="petty-alert" class="team-alert"></div>
-
-                <button type="button" class="topup-btn" onclick="prefillPettyTopUp()">
-                    + Top up Rs. 50,000 (monthly allocation)
-                </button>
-
-                <form id="add-petty-form" onsubmit="addPettyEntry(event)">
-                    <div class="finance-type-toggle">
-                        <button type="button" class="finance-type-btn finance-in active"
-                                data-type="in" onclick="setPettyType('in')">
-                            <span class="ft-icon">&darr;</span>
-                            <span class="ft-label">Money In</span>
-                            <span class="ft-hint">Top-up received</span>
-                        </button>
-                        <button type="button" class="finance-type-btn finance-out"
-                                data-type="out" onclick="setPettyType('out')">
-                            <span class="ft-icon">&uarr;</span>
-                            <span class="ft-label">Money Out</span>
-                            <span class="ft-hint">Office expense paid</span>
-                        </button>
-                    </div>
-
-                    <div class="form-grid">
-                        <div class="form-group" style="grid-column: span 2;">
-                            <label>Description *</label>
-                            <input type="text" id="pty-desc" required maxlength="200"
-                                   placeholder="e.g. Tea & snacks, printer paper, courier"
-                                   autocomplete="off">
-                        </div>
-                        <div class="form-group">
-                            <label>Amount (Rs.) *</label>
-                            <input type="number" id="pty-amount" required min="1" step="any"
-                                   inputmode="decimal" placeholder="0">
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn-generate" id="pty-submit-btn">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <line x1="12" y1="5" x2="12" y2="19"/>
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                        <span id="pty-submit-label">Add Entry</span>
-                    </button>
-                    <button type="button" class="btn-cancel" id="pty-cancel-btn"
-                            style="display: none;" onclick="cancelPettyEdit()">Cancel</button>
-                </form>
-            </div>
-
-            <!-- Summary -->
-            <div class="finance-summary">
-                <div class="fin-summary-card fin-in">
-                    <div class="fin-label">Topped Up</div>
-                    <div class="fin-value" id="pty-total-in">Rs. 0</div>
-                </div>
-                <div class="fin-summary-card fin-out">
-                    <div class="fin-label">Spent</div>
-                    <div class="fin-value" id="pty-total-out">Rs. 0</div>
-                </div>
-                <div class="fin-summary-card fin-net" id="pty-net-card">
-                    <div class="fin-label">Cash on Hand</div>
-                    <div class="fin-value" id="pty-total-net">Rs. 0</div>
-                </div>
-            </div>
-
-            <!-- Entries -->
+        <div id="tab-fin-setup" class="tab-content">
             <div class="card">
-                <div class="card-title">Entries</div>
-                <div class="card-subtitle">
-                    Filter by month or export to CSV.
-                </div>
-
-                <div class="finance-controls">
-                    <input type="month" id="pty-filter-month" onchange="loadPettyTab()">
-                    <button type="button" class="finance-clear-filter" onclick="clearPettyFilter()">All months</button>
-                    <a id="pty-export-link" href="finances-api.php?ledger=petty&export=csv" class="finance-export">
-                        Export CSV
-                    </a>
-                </div>
-
-                <div id="petty-list"><p class="emp-empty">Loading&hellip;</p></div>
+                <div class="card-title">Books</div>
+                <div class="card-subtitle">Top-level ledgers. Erika Media (business) and Kuldeep (personal) are seeded; you can rename or add more.</div>
+                <div id="setup-books-alert" class="team-alert"></div>
+                <div id="setup-books-list"><p class="emp-empty">Loading&hellip;</p></div>
+                <details class="setup-add">
+                    <summary>+ Add new book</summary>
+                    <form onsubmit="setupCreateBook(event)">
+                        <div class="form-grid">
+                            <div class="form-group"><label>Name *</label><input type="text" id="newbook-name" required></div>
+                            <div class="form-group"><label>Type</label>
+                                <select id="newbook-type">
+                                    <option value="business">Business</option>
+                                    <option value="personal">Personal</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-generate">Create Book</button>
+                    </form>
+                </details>
             </div>
 
+            <div class="card">
+                <div class="card-title">Accounts</div>
+                <div class="card-subtitle">
+                    Where money physically sits — bank accounts, cash, crypto wallets, Binance, etc.
+                    Account-currency must match the transactions you record into it.
+                </div>
+                <div id="setup-accounts-alert" class="team-alert"></div>
+                <div id="setup-accounts-list"><p class="emp-empty">Loading&hellip;</p></div>
+                <details class="setup-add">
+                    <summary>+ Add new account</summary>
+                    <form onsubmit="setupCreateAccount(event)">
+                        <div class="form-grid">
+                            <div class="form-group"><label>Name *</label>
+                                <input type="text" id="newacc-name" required placeholder="e.g. HBL Erika Media current">
+                            </div>
+                            <div class="form-group"><label>Type *</label>
+                                <select id="newacc-type">
+                                    <option value="bank">Bank</option>
+                                    <option value="cash">Cash</option>
+                                    <option value="wallet">Wallet (Easypaisa/JazzCash)</option>
+                                    <option value="crypto">Crypto / Binance</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>Currency *</label>
+                                <select id="newacc-currency">
+                                    <option value="PKR">PKR — Pakistani Rupee</option>
+                                    <option value="USDT">USDT — Tether (Binance)</option>
+                                    <option value="USD">USD</option>
+                                    <option value="EUR">EUR</option>
+                                    <option value="AED">AED</option>
+                                    <option value="GBP">GBP</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>Book (optional, blank = shared)</label>
+                                <select id="newacc-book"><option value="">Shared</option></select>
+                            </div>
+                            <div class="form-group"><label>Opening balance</label>
+                                <input type="number" id="newacc-opening" step="0.01" value="0">
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label>Notes</label>
+                                <input type="text" id="newacc-notes" maxlength="200">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-generate">Create Account</button>
+                    </form>
+                </details>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Categories</div>
+                <div class="card-subtitle">
+                    Chart of accounts. Every transaction is tagged with one of these so you can see "all-time spent on Electricity" etc.
+                    Use parents (e.g. "Salaries") with children per employee.
+                </div>
+                <div id="setup-categories-alert" class="team-alert"></div>
+                <div id="setup-categories-list"><p class="emp-empty">Loading&hellip;</p></div>
+                <details class="setup-add">
+                    <summary>+ Add new category</summary>
+                    <form onsubmit="setupCreateCategory(event)">
+                        <div class="form-grid">
+                            <div class="form-group"><label>Name *</label>
+                                <input type="text" id="newcat-name" required placeholder="e.g. Electricity, Rent, Salaries, Charity">
+                            </div>
+                            <div class="form-group"><label>Type *</label>
+                                <select id="newcat-type">
+                                    <option value="expense">Expense</option>
+                                    <option value="income">Income</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>Parent (optional)</label>
+                                <select id="newcat-parent"><option value="">— top-level —</option></select>
+                            </div>
+                            <div class="form-group"><label>Book scope (optional)</label>
+                                <select id="newcat-book"><option value="">Any book</option></select>
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label>Linked employee (optional, for per-employee salary tracking)</label>
+                                <input type="text" id="newcat-employee" placeholder="exact employee name">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-generate">Create Category</button>
+                    </form>
+                </details>
+                <div class="setup-tools">
+                    <button type="button" class="btn-tool" onclick="setupSyncEmployeeCategories()">
+                        Sync employee salary sub-categories
+                    </button>
+                    <span class="muted">Pick a parent expense category, then click — creates one sub-category per employee in employees.json.</span>
+                </div>
+            </div>
         </div>
 
     </div><!-- /content-area -->
@@ -1240,30 +1421,41 @@ function showTab(tab, el) {
     document.getElementById('tab-' + tab).classList.add('active');
     el.classList.add('active');
     var titles = {
-        offer:    'Generate Offer Letter',
-        payslip:  'Generate Payslip',
-        history:  'Document History',
-        activity: 'Activity Log',
-        team:     'Manage Team',
-        finances: 'Finances',
-        petty:    'Petty Cash',
+        offer:        'Generate Offer Letter',
+        payslip:      'Generate Payslip',
+        history:      'Document History',
+        activity:     'Activity Log',
+        team:         'Manage Team',
+        finances:     'Finances',
+        'fin-setup':  'Finance Setup',
     };
     document.getElementById('page-title').textContent = titles[tab] || '';
-    if (tab === 'history')  loadHistoryTab();
-    if (tab === 'activity') loadActivityList();
-    if (tab === 'finances') loadFinancesTab();
-    if (tab === 'petty')    loadPettyTab();
+    if (tab === 'history')     loadHistoryTab();
+    if (tab === 'activity')    loadActivityList();
+    if (tab === 'finances')    loadFinancesTab();
+    if (tab === 'fin-setup')   loadFinanceSetupTab();
 }
 
-// ── Finances ──────────────────────────────────────────────────────────────
-var financeType         = 'in';
-var financesEntriesCache = [];
-var financesEditingId   = null;
+// ── Finances (new SQLite-backed system) ───────────────────────────────────
+var booksCache       = [];
+var accountsCache    = [];   // accounts visible to current book (book-scoped or shared)
+var allAccountsCache = [];   // every account (used by Split form to pick from any book)
+var categoriesCache  = [];   // categories visible to current book (or shared)
+var currentBook      = null; // selected book id
+var currentSub       = 'entries';
+var txEditingId      = null;
+var splitRowSeq      = 0;
 
-function setFinanceType(t) {
-    financeType = t;
-    document.querySelectorAll('#tab-finances .finance-type-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.querySelector('#tab-finances .finance-type-btn[data-type="' + t + '"]').classList.add('active');
+function escFin(s) {
+    var d = document.createElement('div');
+    d.textContent = String(s == null ? '' : s);
+    return d.innerHTML;
+}
+
+function fmtMoney(amount, currency) {
+    var n = Math.round((amount || 0) * 100) / 100;
+    var sym = (currency === 'PKR') ? 'Rs. ' : ((currency || '') + ' ');
+    return sym + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function showFinanceAlert(msg, ok) {
@@ -1271,61 +1463,481 @@ function showFinanceAlert(msg, ok) {
     el.className = 'team-alert ' + (ok ? 'success' : 'error');
     el.textContent = msg;
     el.style.display = 'block';
-    if (ok) setTimeout(function() { el.style.display = 'none'; }, 3000);
+    if (ok) setTimeout(function() { el.style.display = 'none'; }, 4000);
 }
 
-function addFinanceEntry(e) {
-    e.preventDefault();
-    var desc   = document.getElementById('fin-desc').value.trim();
-    var amount = parseFloat(document.getElementById('fin-amount').value);
-    if (!desc || !amount || amount <= 0) {
-        showFinanceAlert('Description and a positive amount are required.', false);
-        return;
+// ── Entry point: load books, default selection, then load views ───────────
+function loadFinancesTab() {
+    return fetch('books-api.php')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            booksCache = d.books || [];
+            if (!currentBook && booksCache.length) currentBook = booksCache[0].id;
+            renderBookSelector();
+            return Promise.all([loadAccounts(), loadCategories()]);
+        })
+        .then(function() {
+            return loadFinancesEntries();
+        });
+}
+
+function renderBookSelector() {
+    var html = booksCache.map(function(b) {
+        var cls = (b.id === currentBook) ? 'book-btn active' : 'book-btn';
+        return '<button type="button" class="' + cls + '" onclick="selectBook(\'' + b.id + '\')">' +
+            escFin(b.name) + '</button>';
+    }).join('');
+    document.getElementById('book-selector').innerHTML = html;
+}
+
+function selectBook(id) {
+    if (currentBook === id) return;
+    currentBook = id;
+    renderBookSelector();
+    Promise.all([loadAccounts(), loadCategories()]).then(function() {
+        refreshCurrentSub();
+    });
+}
+
+function loadAccounts() {
+    return fetch('accounts-api.php?book_id=' + encodeURIComponent(currentBook))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            accountsCache = d.accounts || [];
+            return fetch('accounts-api.php');
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            allAccountsCache = d.accounts || [];
+            populateAccountFilter();
+            populateAccountSelects();
+        });
+}
+
+function loadCategories() {
+    return fetch('categories-api.php?book_id=' + encodeURIComponent(currentBook))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            categoriesCache = d.categories || [];
+            populateCategoryFilter();
+            populateCategorySelects();
+        });
+}
+
+function populateAccountFilter() {
+    var sel = document.getElementById('fin-filter-account');
+    if (!sel) return;
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">All accounts</option>';
+    accountsCache.forEach(function(a) {
+        sel.add(new Option(a.name + ' (' + a.currency + ')', a.id));
+    });
+    sel.value = cur;
+}
+
+function populateCategoryFilter() {
+    var sel = document.getElementById('fin-filter-category');
+    if (!sel) return;
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">All categories</option>';
+    categoriesCache.forEach(function(c) {
+        sel.add(new Option(c.name + ' [' + c.type + ']', c.id));
+    });
+    sel.value = cur;
+}
+
+function populateAccountSelects() {
+    ['tx-account', 'trn-src', 'trn-dst', 'spl-pair-account'].forEach(function(id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">— pick account —</option>';
+        var pool = (id === 'spl-pair-account') ? allAccountsCache : accountsCache;
+        pool.forEach(function(a) {
+            sel.add(new Option(a.name + ' (' + a.currency + ')', a.id));
+        });
+        if (cur) sel.value = cur;
+    });
+}
+
+function populateCategorySelects() {
+    var txSel  = document.getElementById('tx-category');
+    var pairSel = document.getElementById('spl-pair-category');
+    if (txSel) {
+        var curT = txSel.value;
+        var t = document.getElementById('tx-type').value;
+        txSel.innerHTML = '<option value="">— uncategorised —</option>';
+        categoriesCache.filter(function(c) { return c.type === t; }).forEach(function(c) {
+            txSel.add(new Option(c.name, c.id));
+        });
+        if (curT) txSel.value = curT;
     }
-    var payload = { action: 'add', type: financeType, amount: amount, description: desc };
-    if (financesEditingId) {
-        payload.action = 'update';
-        payload.id     = financesEditingId;
+    if (pairSel) {
+        var curP = pairSel.value;
+        pairSel.innerHTML = '<option value="">— uncategorised —</option>';
+        categoriesCache.filter(function(c) { return c.type === 'expense'; }).forEach(function(c) {
+            pairSel.add(new Option(c.name, c.id));
+        });
+        if (curP) pairSel.value = curP;
+    }
+}
+
+// ── Sub-tab navigation ────────────────────────────────────────────────────
+function showFinSub(name) {
+    currentSub = name;
+    document.querySelectorAll('#tab-finances .fin-subtab').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelector('#tab-finances .fin-subtab[data-sub="' + name + '"]').classList.add('active');
+    document.querySelectorAll('#tab-finances .fin-subpanel').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('fin-sub-' + name).classList.add('active');
+    refreshCurrentSub();
+}
+
+function refreshCurrentSub() {
+    if (currentSub === 'entries')    loadFinancesEntries();
+    if (currentSub === 'categories') loadCategoryTotals();
+    if (currentSub === 'accounts')   loadAccountBalances();
+    if (currentSub === 'salaries')   loadSalaries();
+    if (currentSub === 'splits')     loadSplits();
+}
+
+// ── Add/Edit transaction form ─────────────────────────────────────────────
+function openTxForm(type) {
+    closeAllForms();
+    document.getElementById('tx-form-card').style.display = 'block';
+    document.getElementById('tx-form-title').textContent = (type === 'income') ? 'Add Money In' : 'Add Money Out';
+    document.getElementById('tx-type').value = type;
+    document.getElementById('tx-date').value = todayISO();
+    document.getElementById('tx-amount').value = '';
+    document.getElementById('tx-counterparty').value = '';
+    document.getElementById('tx-description').value = '';
+    txEditingId = null;
+    document.getElementById('tx-submit-btn').textContent = 'Save';
+    onTxTypeChange();
+    document.getElementById('tx-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeTxForm() {
+    document.getElementById('tx-form-card').style.display = 'none';
+    txEditingId = null;
+}
+
+function onTxTypeChange() {
+    populateCategorySelects();
+}
+
+function submitTxForm(e) {
+    e.preventDefault();
+    var payload = {
+        action: txEditingId ? 'update' : 'add',
+        date:         document.getElementById('tx-date').value,
+        book_id:      currentBook,
+        type:         document.getElementById('tx-type').value,
+        amount:       parseFloat(document.getElementById('tx-amount').value),
+        account_id:   document.getElementById('tx-account').value,
+        category_id:  document.getElementById('tx-category').value || '',
+        counterparty: document.getElementById('tx-counterparty').value.trim(),
+        description:  document.getElementById('tx-description').value.trim(),
+    };
+    if (txEditingId) payload.id = txEditingId;
+    if (!payload.account_id) { showFinanceAlert('Pick an account.', false); return; }
+    if (!payload.amount || payload.amount <= 0) { showFinanceAlert('Amount must be positive.', false); return; }
+
+    apiPost('finances-api.php', payload).then(function(d) {
+        if (d.error) return showFinanceAlert(d.error, false);
+        showFinanceAlert(txEditingId ? 'Updated.' : 'Saved.', true);
+        closeTxForm();
+        refreshCurrentSub();
+    });
+}
+
+function editTransaction(id) {
+    fetch('finances-api.php?include_void=1&book_id=' + encodeURIComponent(currentBook))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var entry = (d.entries || []).find(function(e) { return e.id === id; });
+            if (!entry) return showFinanceAlert('Entry not found.', false);
+            if (entry.type !== 'income' && entry.type !== 'expense') {
+                showFinanceAlert('Transfers and split rows are best edited via Setup → Audit Log. Void and recreate if you must change them.', false);
+                return;
+            }
+            openTxForm(entry.type);
+            txEditingId = id;
+            document.getElementById('tx-form-title').textContent = 'Edit Transaction';
+            document.getElementById('tx-submit-btn').textContent = 'Save Changes';
+            document.getElementById('tx-date').value         = entry.date;
+            document.getElementById('tx-type').value         = entry.type;
+            populateCategorySelects();
+            document.getElementById('tx-account').value      = entry.account_id;
+            document.getElementById('tx-amount').value       = entry.amount;
+            document.getElementById('tx-category').value     = entry.category_id || '';
+            document.getElementById('tx-counterparty').value = entry.counterparty || '';
+            document.getElementById('tx-description').value  = entry.description  || '';
+        });
+}
+
+function voidTransaction(id) {
+    if (!confirm('Void this entry? It will be hidden from totals but kept for audit. Linked rows (transfer pairs / split children) will be voided too.')) return;
+    apiPost('finances-api.php', { action: 'void', id: id, cascade: true }).then(function(d) {
+        if (d.error) return showFinanceAlert(d.error, false);
+        showFinanceAlert('Voided.', true);
+        refreshCurrentSub();
+    });
+}
+
+// ── Transfer form (within current book) ───────────────────────────────────
+function openTransferForm() {
+    closeAllForms();
+    document.getElementById('transfer-form-card').style.display = 'block';
+    document.getElementById('trn-date').value = todayISO();
+    document.getElementById('trn-amount').value = '';
+    document.getElementById('trn-description').value = '';
+    document.getElementById('transfer-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeTransferForm() {
+    document.getElementById('transfer-form-card').style.display = 'none';
+}
+
+function submitTransferForm(e) {
+    e.preventDefault();
+    var payload = {
+        action:         'transfer',
+        book_id:        currentBook,
+        date:           document.getElementById('trn-date').value,
+        amount:         parseFloat(document.getElementById('trn-amount').value),
+        src_account_id: document.getElementById('trn-src').value,
+        dst_account_id: document.getElementById('trn-dst').value,
+        description:    document.getElementById('trn-description').value.trim(),
+    };
+    if (!payload.src_account_id || !payload.dst_account_id) {
+        showFinanceAlert('Pick both source and destination accounts.', false); return;
+    }
+    if (payload.src_account_id === payload.dst_account_id) {
+        showFinanceAlert('Source and destination must differ.', false); return;
     }
     apiPost('finances-api.php', payload).then(function(d) {
         if (d.error) return showFinanceAlert(d.error, false);
-        showFinanceAlert(financesEditingId ? 'Updated.' : 'Saved.', true);
-        cancelFinanceEdit();
-        loadFinancesTab();
-    }).catch(function() { showFinanceAlert('Network error. Try again.', false); });
+        showFinanceAlert('Transfer saved.', true);
+        closeTransferForm();
+        refreshCurrentSub();
+    });
 }
 
-function editFinanceEntry(id) {
-    var entry = financesEntriesCache.find(function(e) { return e.id === id; });
-    if (!entry) return;
-    financesEditingId = id;
-    setFinanceType(entry.type);
-    document.getElementById('fin-desc').value      = entry.description;
-    document.getElementById('fin-amount').value    = entry.amount;
-    document.getElementById('fin-submit-label').textContent = 'Save Changes';
-    document.getElementById('fin-cancel-btn').style.display = 'inline-block';
-    document.getElementById('add-finance-form').scrollIntoView({behavior: 'smooth', block: 'start'});
-    document.getElementById('fin-desc').focus();
+// ── Split form (auto-split, optionally cross-book paired) ─────────────────
+function openSplitForm() {
+    closeAllForms();
+    splitRowSeq = 0;
+    document.getElementById('split-form-card').style.display = 'block';
+    document.getElementById('spl-date').value = todayISO();
+    document.getElementById('spl-total').value = '';
+    document.getElementById('spl-counterparty').value = '';
+    document.getElementById('spl-description').value = '';
+    document.getElementById('spl-pair').checked = false;
+    document.getElementById('spl-pair-fields').style.display = 'none';
+    var book = booksCache.find(function(b) { return b.id === currentBook; });
+    document.getElementById('spl-target-book-label').textContent = book ? book.name : '—';
+
+    populatePairBookSelect();
+    resetSplitToDefault();
+    document.getElementById('split-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function cancelFinanceEdit() {
-    financesEditingId = null;
-    document.getElementById('fin-desc').value   = '';
-    document.getElementById('fin-amount').value = '';
-    document.getElementById('fin-submit-label').textContent = 'Add Entry';
-    document.getElementById('fin-cancel-btn').style.display = 'none';
-    setFinanceType('in');
+function closeSplitForm() {
+    document.getElementById('split-form-card').style.display = 'none';
 }
 
-function loadFinancesTab() {
-    var month = document.getElementById('fin-filter-month').value;
-    var qs    = month ? '?month=' + month : '';
-    document.getElementById('fin-export-link').href = 'finances-api.php?export=csv' + (month ? '&month=' + month : '');
+function populatePairBookSelect() {
+    var sel = document.getElementById('spl-pair-book');
+    sel.innerHTML = '';
+    booksCache.filter(function(b) { return b.id !== currentBook; }).forEach(function(b) {
+        sel.add(new Option(b.name, b.id));
+    });
+}
+
+function onPairToggle() {
+    document.getElementById('spl-pair-fields').style.display =
+        document.getElementById('spl-pair').checked ? 'block' : 'none';
+}
+
+function resetSplitToDefault() {
+    document.getElementById('spl-rows').innerHTML = '';
+    splitRowSeq = 0;
+    addSplitRow(70, 'Main / spending');
+    addSplitRow(10, 'Charity');
+    addSplitRow(10, 'Savings');
+    addSplitRow(10, 'Investment');
+    recalcSplitAmounts();
+}
+
+function addSplitRow(percent, hint) {
+    splitRowSeq++;
+    var i = splitRowSeq;
+    var pct = (percent != null) ? percent : 0;
+    var html = '<div class="split-row" id="splrow-' + i + '">' +
+        '<div class="split-row-num">#' + i + '</div>' +
+        '<div class="form-group"><label>%</label>' +
+            '<input type="number" class="spl-pct" min="0" max="100" step="0.01" value="' + pct + '" oninput="recalcSplitAmounts()">' +
+        '</div>' +
+        '<div class="form-group"><label>Amount</label>' +
+            '<input type="number" class="spl-amt" min="0" step="0.01" value="0" oninput="onSplitAmountChange(' + i + ')">' +
+        '</div>' +
+        '<div class="form-group"><label>Account</label>' +
+            '<select class="spl-acc"></select>' +
+        '</div>' +
+        '<div class="form-group"><label>Category</label>' +
+            '<select class="spl-cat"></select>' +
+        '</div>' +
+        '<div class="form-group"><label>Description / Note</label>' +
+            '<input type="text" class="spl-desc" maxlength="200" placeholder="' + escFin(hint || '') + '">' +
+        '</div>' +
+        '<button type="button" class="split-del" onclick="removeSplitRow(' + i + ')" title="Remove">×</button>' +
+    '</div>';
+    document.getElementById('spl-rows').insertAdjacentHTML('beforeend', html);
+    renderSplitDestOptions();
+}
+
+function removeSplitRow(i) {
+    var el = document.getElementById('splrow-' + i);
+    if (el) el.remove();
+    recalcSplitAmounts();
+}
+
+function renderSplitDestOptions() {
+    var cur = document.getElementById('spl-currency').value;
+    var accOptions = '<option value="">— pick account —</option>' + accountsCache
+        .filter(function(a) { return a.currency === cur; })
+        .map(function(a) { return '<option value="' + a.id + '">' + escFin(a.name) + '</option>'; })
+        .join('');
+    var catOptions = '<option value="">— uncategorised —</option>' + categoriesCache
+        .filter(function(c) { return c.type === 'income'; })
+        .map(function(c) { return '<option value="' + c.id + '">' + escFin(c.name) + '</option>'; })
+        .join('');
+    document.querySelectorAll('#spl-rows .spl-acc').forEach(function(s) {
+        var v = s.value; s.innerHTML = accOptions; s.value = v;
+    });
+    document.querySelectorAll('#spl-rows .spl-cat').forEach(function(s) {
+        var v = s.value; s.innerHTML = catOptions; s.value = v;
+    });
+}
+
+function recalcSplitAmounts() {
+    var total = parseFloat(document.getElementById('spl-total').value) || 0;
+    var rows = document.querySelectorAll('#spl-rows .split-row');
+    var sum = 0;
+    rows.forEach(function(r) {
+        var pct = parseFloat(r.querySelector('.spl-pct').value) || 0;
+        var amt = Math.round(total * pct) / 100;
+        r.querySelector('.spl-amt').value = amt.toFixed(2);
+        sum += amt;
+    });
+    var sumEl = document.getElementById('spl-sum-display');
+    sumEl.textContent = sum.toFixed(2) + ' / ' + total.toFixed(2);
+    var warn = document.getElementById('spl-sum-warn');
+    if (Math.abs(sum - total) > 0.01) warn.textContent = '  ⚠ doesn\'t add up to total';
+    else warn.textContent = '';
+}
+
+function onSplitAmountChange(i) {
+    var total = parseFloat(document.getElementById('spl-total').value) || 0;
+    if (total > 0) {
+        var row = document.getElementById('splrow-' + i);
+        var amt = parseFloat(row.querySelector('.spl-amt').value) || 0;
+        row.querySelector('.spl-pct').value = ((amt / total) * 100).toFixed(2);
+    }
+    var sum = 0;
+    document.querySelectorAll('#spl-rows .spl-amt').forEach(function(el) {
+        sum += parseFloat(el.value) || 0;
+    });
+    document.getElementById('spl-sum-display').textContent = sum.toFixed(2) + ' / ' + total.toFixed(2);
+    var warn = document.getElementById('spl-sum-warn');
+    if (Math.abs(sum - total) > 0.01) warn.textContent = '  ⚠ doesn\'t add up to total';
+    else warn.textContent = '';
+}
+
+function submitSplitForm(e) {
+    e.preventDefault();
+    var total = parseFloat(document.getElementById('spl-total').value) || 0;
+    if (total <= 0) { showFinanceAlert('Total must be positive.', false); return; }
+
+    var splits = [];
+    var sum = 0;
+    var hasError = false;
+    document.querySelectorAll('#spl-rows .split-row').forEach(function(r) {
+        if (hasError) return;
+        var amt   = parseFloat(r.querySelector('.spl-amt').value) || 0;
+        var accId = r.querySelector('.spl-acc').value;
+        var catId = r.querySelector('.spl-cat').value;
+        var desc  = r.querySelector('.spl-desc').value.trim();
+        if (amt <= 0)   { showFinanceAlert('Each split must have a positive amount.', false); hasError = true; return; }
+        if (!accId)     { showFinanceAlert('Each split needs a destination account.', false); hasError = true; return; }
+        sum += amt;
+        splits.push({ amount: amt, account_id: accId, category_id: catId, description: desc });
+    });
+    if (hasError) return;
+    if (Math.abs(sum - total) > 0.01) { showFinanceAlert('Splits must add up to the total.', false); return; }
+    if (splits.length < 2) { showFinanceAlert('Provide at least two splits.', false); return; }
+
+    var payload = {
+        action:       'split',
+        book_id:      currentBook,
+        date:         document.getElementById('spl-date').value,
+        currency:     document.getElementById('spl-currency').value,
+        counterparty: document.getElementById('spl-counterparty').value.trim(),
+        description:  document.getElementById('spl-description').value.trim(),
+        split_type:   'income',
+        splits:       splits,
+    };
+    if (document.getElementById('spl-pair').checked) {
+        var pBook = document.getElementById('spl-pair-book').value;
+        var pAcc  = document.getElementById('spl-pair-account').value;
+        var pCat  = document.getElementById('spl-pair-category').value;
+        if (!pBook || !pAcc) { showFinanceAlert('Source book and account are required for the paired entry.', false); return; }
+        payload.match_opposite = {
+            book_id:     pBook,
+            account_id:  pAcc,
+            category_id: pCat,
+            description: payload.description,
+        };
+    }
+
+    apiPost('finances-api.php', payload).then(function(d) {
+        if (d.error) return showFinanceAlert(d.error, false);
+        showFinanceAlert('Split saved (' + splits.length + ' rows).', true);
+        closeSplitForm();
+        refreshCurrentSub();
+    });
+}
+
+function closeAllForms() {
+    closeTxForm();
+    closeTransferForm();
+    closeSplitForm();
+}
+
+function todayISO() {
+    var d = new Date();
+    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+// ── Entries view ──────────────────────────────────────────────────────────
+function loadFinancesEntries() {
+    if (!currentBook) return;
+    var month   = document.getElementById('fin-filter-month').value;
+    var account = document.getElementById('fin-filter-account').value;
+    var category = document.getElementById('fin-filter-category').value;
+    var q = '?book_id=' + encodeURIComponent(currentBook);
+    if (month)    q += '&month=' + encodeURIComponent(month);
+    if (account)  q += '&account_id=' + encodeURIComponent(account);
+    if (category) q += '&category_id=' + encodeURIComponent(category);
+
+    document.getElementById('fin-export-link').href = 'finances-api.php' + q + '&export=csv';
     document.getElementById('finances-list').innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
-    fetch('finances-api.php' + qs)
+
+    fetch('finances-api.php' + q)
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            renderFinanceSummary(d.totals || {in:0, out:0, net:0});
+            renderFinanceSummary(d.totals || {});
             renderFinanceList(d.entries || []);
         })
         .catch(function() {
@@ -1333,193 +1945,450 @@ function loadFinancesTab() {
         });
 }
 
-function renderFinanceSummary(t) {
-    var fmt = function(n) { return 'Rs. ' + Math.round(n).toLocaleString(); };
-    document.getElementById('fin-total-in').textContent  = fmt(t.in);
-    document.getElementById('fin-total-out').textContent = fmt(t.out);
+function renderFinanceSummary(totals) {
+    var cur = Object.keys(totals)[0] || 'PKR';
+    var t = totals[cur] || { income: 0, expense: 0, net: 0 };
+    document.getElementById('fin-total-in').textContent  = fmtMoney(t.income, cur);
+    document.getElementById('fin-total-out').textContent = fmtMoney(t.expense, cur);
     var net = t.net || 0;
-    document.getElementById('fin-total-net').textContent = (net < 0 ? '− ' : '') + fmt(Math.abs(net));
+    document.getElementById('fin-total-net').textContent = (net < 0 ? '− ' : '') + fmtMoney(Math.abs(net), cur);
     document.getElementById('fin-net-card').classList.toggle('fin-net-negative', net < 0);
 }
 
 function renderFinanceList(entries) {
-    financesEntriesCache = entries;
     if (!entries.length) {
         document.getElementById('finances-list').innerHTML =
-            '<p class="emp-empty">No entries yet for this period. Add one above.</p>';
+            '<p class="emp-empty">No entries yet for this filter. Use the buttons above to add one.</p>';
         return;
     }
     var rows = entries.map(function(e) {
-        var sign = e.type === 'in' ? '+' : '−';
-        var cls  = e.type === 'in' ? 'fin-row-in' : 'fin-row-out';
+        var sign  = (e.type === 'income' || e.type === 'transfer_in') ? '+' : '−';
+        var typeBadge = e.type === 'income'        ? 'In'
+                      : e.type === 'expense'       ? 'Out'
+                      : e.type === 'transfer_in'   ? 'Trf In'
+                      :                              'Trf Out';
+        var cls = (e.type === 'income' || e.type === 'transfer_in') ? 'fin-row-in' : 'fin-row-out';
+        var meta = '<span class="fin-meta">' + escFin(e.account_name);
+        if (e.category_name) meta += ' · ' + escFin(e.category_name);
+        if (e.counterparty)  meta += ' · ' + escFin(e.counterparty);
+        if (e.split_group_id) meta += ' · split';
+        if (e.linked_tx_id)   meta += ' · linked';
+        meta += '</span>';
         return '<tr class="' + cls + '">' +
             '<td class="fin-date">' + escFin(e.date) + '</td>' +
-            '<td class="fin-desc-cell">' + escFin(e.description) + '</td>' +
-            '<td class="num"><strong>' + sign + ' Rs. ' + Math.round(e.amount).toLocaleString() + '</strong></td>' +
+            '<td><span class="fin-type-badge fin-type-' + e.type + '">' + typeBadge + '</span></td>' +
+            '<td class="fin-desc-cell">' +
+                '<div>' + escFin(e.description || '(no description)') + '</div>' +
+                meta +
+            '</td>' +
+            '<td class="num"><strong>' + sign + ' ' + fmtMoney(e.amount, e.currency) + '</strong></td>' +
             '<td class="fin-actions">' +
-                '<button class="finance-edit" title="Edit" onclick="editFinanceEntry(\'' + e.id + '\')">Edit</button>' +
-                '<button class="finance-del"  title="Delete" onclick="deleteFinanceEntry(\'' + e.id + '\')">Delete</button>' +
+                '<button class="finance-edit" onclick="editTransaction(\'' + e.id + '\')">Edit</button>' +
+                '<button class="finance-del" onclick="voidTransaction(\'' + e.id + '\')">Void</button>' +
             '</td>' +
         '</tr>';
     }).join('');
     document.getElementById('finances-list').innerHTML =
         '<div class="finance-table-wrap"><table class="finance-table">' +
-        '<thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th><th></th></tr></thead>' +
+        '<thead><tr><th>Date</th><th>Type</th><th>Description</th><th class="num">Amount</th><th></th></tr></thead>' +
         '<tbody>' + rows + '</tbody></table></div>';
 }
 
-function escFin(s) {
-    var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML;
+function clearFinanceFilter() {
+    document.getElementById('fin-filter-month').value    = '';
+    document.getElementById('fin-filter-account').value  = '';
+    document.getElementById('fin-filter-category').value = '';
+    loadFinancesEntries();
 }
 
-function deleteFinanceEntry(id) {
-    if (!confirm('Delete this entry? This cannot be undone.')) return;
-    apiPost('finances-api.php', { action: 'delete', id: id })
+// ── By-Category running totals ────────────────────────────────────────────
+function loadCategoryTotals() {
+    fetch('reports-api.php?type=category_totals&book_id=' + encodeURIComponent(currentBook))
+        .then(function(r) { return r.json(); })
         .then(function(d) {
-            if (d.error) return showFinanceAlert(d.error, false);
-            loadFinancesTab();
+            renderCategoryTotals(d.categories || []);
         });
 }
 
-function clearFinanceFilter() {
-    document.getElementById('fin-filter-month').value = '';
-    loadFinancesTab();
+function renderCategoryTotals(cats) {
+    if (!cats.length) {
+        document.getElementById('cat-totals-list').innerHTML =
+            '<p class="emp-empty">No categories yet. Set them up in Finance Setup → Categories.</p>';
+        return;
+    }
+    var income  = cats.filter(function(c) { return c.type === 'income'; });
+    var expense = cats.filter(function(c) { return c.type === 'expense'; });
+
+    var sectionHtml = function(title, list) {
+        if (!list.length) return '';
+        return '<h3 class="cat-section">' + title + '</h3>' + list.map(function(c) {
+            var totals = (c.by_currency || []).map(function(b) {
+                return '<span class="cat-total">' + fmtMoney(b.total, b.currency) +
+                       ' <span class="muted">(' + b.count + ')</span></span>';
+            }).join(' ');
+            if (!totals) totals = '<span class="muted">No transactions yet</span>';
+            return '<div class="cat-row" onclick="filterByCategory(\'' + c.id + '\')">' +
+                '<div class="cat-name">' + escFin(c.name) +
+                    (c.linked_employee ? ' <span class="muted">· ' + escFin(c.linked_employee) + '</span>' : '') +
+                '</div>' +
+                '<div class="cat-totals">' + totals + '</div>' +
+            '</div>';
+        }).join('');
+    };
+    document.getElementById('cat-totals-list').innerHTML =
+        sectionHtml('Expenses', expense) + sectionHtml('Income', income);
 }
 
-// ── Petty Cash ────────────────────────────────────────────────────────────
-// Same endpoint as Finances but with ?ledger=petty so it reads/writes
-// petty-cash.json instead of finances.json.
-var pettyType         = 'in';
-var pettyEntriesCache = [];
-var pettyEditingId    = null;
-
-function setPettyType(t) {
-    pettyType = t;
-    document.querySelectorAll('#tab-petty .finance-type-btn').forEach(function(b) { b.classList.remove('active'); });
-    document.querySelector('#tab-petty .finance-type-btn[data-type="' + t + '"]').classList.add('active');
+function filterByCategory(catId) {
+    document.getElementById('fin-filter-category').value = catId;
+    showFinSub('entries');
 }
 
-function showPettyAlert(msg, ok) {
-    var el = document.getElementById('petty-alert');
+// ── Account balances ──────────────────────────────────────────────────────
+function loadAccountBalances() {
+    fetch('reports-api.php?type=account_balances')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderAccountBalances(d.accounts || []);
+        });
+}
+
+function renderAccountBalances(accs) {
+    if (!accs.length) {
+        document.getElementById('account-balances-list').innerHTML =
+            '<p class="emp-empty">No accounts yet. Add some in Finance Setup → Accounts.</p>';
+        return;
+    }
+    var html = accs.map(function(a) {
+        var book = booksCache.find(function(b) { return b.id === a.book_id; });
+        var bookLabel = book ? book.name : 'Shared';
+        return '<div class="account-card" onclick="filterByAccount(\'' + a.id + '\')">' +
+            '<div class="acc-name">' + escFin(a.name) + '</div>' +
+            '<div class="acc-meta">' + escFin(a.type) + ' · ' + escFin(bookLabel) + ' · ' + a.tx_count + ' tx</div>' +
+            '<div class="acc-balance">' + fmtMoney(a.balance, a.currency) + '</div>' +
+        '</div>';
+    }).join('');
+    document.getElementById('account-balances-list').innerHTML = '<div class="account-grid">' + html + '</div>';
+}
+
+function filterByAccount(accId) {
+    document.getElementById('fin-filter-account').value = accId;
+    showFinSub('entries');
+}
+
+// ── Per-employee salaries ─────────────────────────────────────────────────
+function loadSalaries() {
+    fetch('reports-api.php?type=employee_salaries')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderSalaries(d.employees || []);
+        });
+}
+
+function renderSalaries(emps) {
+    if (!emps.length) {
+        document.getElementById('salaries-list').innerHTML =
+            '<p class="emp-empty">No employee-linked categories used yet. Create them in Finance Setup → Categories.</p>';
+        return;
+    }
+    var rows = emps.map(function(e) {
+        var totals = (e.by_currency || []).map(function(b) {
+            return fmtMoney(b.total, b.currency) + ' <span class="muted">(' + b.count + ')</span>';
+        }).join(' · ');
+        return '<tr><td>' + escFin(e.employee) + '</td>' +
+               '<td>' + totals + '</td>' +
+               '<td>' + escFin(e.last_paid || '') + '</td></tr>';
+    }).join('');
+    document.getElementById('salaries-list').innerHTML =
+        '<table class="finance-table"><thead><tr><th>Employee</th><th>All-time paid</th><th>Last paid</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table>';
+}
+
+// ── Splits view ───────────────────────────────────────────────────────────
+function loadSplits() {
+    fetch('reports-api.php?type=split_groups&book_id=' + encodeURIComponent(currentBook))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderSplits(d.groups || []);
+        });
+}
+
+function renderSplits(groups) {
+    if (!groups.length) {
+        document.getElementById('splits-list').innerHTML =
+            '<p class="emp-empty">No split events yet for this book.</p>';
+        return;
+    }
+    var rows = groups.map(function(g) {
+        return '<tr onclick="document.getElementById(\'fin-filter-month\').value = \'\'; showFinSub(\'entries\');">' +
+            '<td>' + escFin(g.date) + '</td>' +
+            '<td>' + fmtMoney(g.total, g.currency) + '</td>' +
+            '<td>' + g.legs + '</td>' +
+            '<td>' + escFin(g.counterparty || '') + '</td>' +
+            '<td>' + escFin(g.description || '') + '</td>' +
+        '</tr>';
+    }).join('');
+    document.getElementById('splits-list').innerHTML =
+        '<table class="finance-table"><thead><tr><th>Date</th><th>Total</th><th>Legs</th><th>Counterparty</th><th>Description</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table>';
+}
+
+// ── Finance Setup tab ─────────────────────────────────────────────────────
+function loadFinanceSetupTab() {
+    return fetch('books-api.php')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            booksCache = d.books || [];
+            renderSetupBooks();
+            populateBookSelectsForSetup();
+            return fetch('accounts-api.php?include_archived=1');
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderSetupAccounts(d.accounts || []);
+            return fetch('categories-api.php?include_archived=1');
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderSetupCategories(d.categories || []);
+            populateParentCategorySelect(d.categories || []);
+        });
+}
+
+function setupAlert(targetId, msg, ok) {
+    var el = document.getElementById(targetId);
+    if (!el) return;
     el.className = 'team-alert ' + (ok ? 'success' : 'error');
     el.textContent = msg;
     el.style.display = 'block';
     if (ok) setTimeout(function() { el.style.display = 'none'; }, 3000);
 }
 
-function prefillPettyTopUp() {
-    setPettyType('in');
-    document.getElementById('pty-desc').value   = 'Monthly petty cash top-up';
-    document.getElementById('pty-amount').value = 50000;
-    document.getElementById('pty-amount').focus();
+function populateBookSelectsForSetup() {
+    ['newacc-book', 'newcat-book'].forEach(function(id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        var blank = id === 'newacc-book' ? 'Shared' : 'Any book';
+        sel.innerHTML = '<option value="">' + blank + '</option>';
+        booksCache.forEach(function(b) { sel.add(new Option(b.name, b.id)); });
+    });
 }
 
-function addPettyEntry(e) {
-    e.preventDefault();
-    var desc   = document.getElementById('pty-desc').value.trim();
-    var amount = parseFloat(document.getElementById('pty-amount').value);
-    if (!desc || !amount || amount <= 0) {
-        showPettyAlert('Description and a positive amount are required.', false);
-        return;
+function populateParentCategorySelect(cats) {
+    var sel = document.getElementById('newcat-parent');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— top-level —</option>';
+    cats.forEach(function(c) { sel.add(new Option(c.name + ' [' + c.type + ']', c.id)); });
+}
+
+function renderSetupBooks() {
+    if (!booksCache.length) {
+        document.getElementById('setup-books-list').innerHTML = '<p class="emp-empty">No books.</p>'; return;
     }
-    var payload = { ledger: 'petty', action: 'add', type: pettyType, amount: amount, description: desc };
-    if (pettyEditingId) {
-        payload.action = 'update';
-        payload.id     = pettyEditingId;
-    }
-    apiPost('finances-api.php', payload).then(function(d) {
-        if (d.error) return showPettyAlert(d.error, false);
-        showPettyAlert(pettyEditingId ? 'Updated.' : 'Saved.', true);
-        cancelPettyEdit();
-        loadPettyTab();
-    }).catch(function() { showPettyAlert('Network error. Try again.', false); });
-}
-
-function editPettyEntry(id) {
-    var entry = pettyEntriesCache.find(function(e) { return e.id === id; });
-    if (!entry) return;
-    pettyEditingId = id;
-    setPettyType(entry.type);
-    document.getElementById('pty-desc').value      = entry.description;
-    document.getElementById('pty-amount').value    = entry.amount;
-    document.getElementById('pty-submit-label').textContent = 'Save Changes';
-    document.getElementById('pty-cancel-btn').style.display = 'inline-block';
-    document.getElementById('add-petty-form').scrollIntoView({behavior: 'smooth', block: 'start'});
-    document.getElementById('pty-desc').focus();
-}
-
-function cancelPettyEdit() {
-    pettyEditingId = null;
-    document.getElementById('pty-desc').value   = '';
-    document.getElementById('pty-amount').value = '';
-    document.getElementById('pty-submit-label').textContent = 'Add Entry';
-    document.getElementById('pty-cancel-btn').style.display = 'none';
-    setPettyType('in');
-}
-
-function loadPettyTab() {
-    var month = document.getElementById('pty-filter-month').value;
-    var qs    = '?ledger=petty' + (month ? '&month=' + month : '');
-    document.getElementById('pty-export-link').href = 'finances-api.php?ledger=petty&export=csv' + (month ? '&month=' + month : '');
-    document.getElementById('petty-list').innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
-    fetch('finances-api.php' + qs)
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            renderPettySummary(d.totals || {in:0, out:0, net:0});
-            renderPettyList(d.entries || []);
-        })
-        .catch(function() {
-            document.getElementById('petty-list').innerHTML = '<p class="emp-empty">Could not load entries.</p>';
-        });
-}
-
-function renderPettySummary(t) {
-    var fmt = function(n) { return 'Rs. ' + Math.round(n).toLocaleString(); };
-    document.getElementById('pty-total-in').textContent  = fmt(t.in);
-    document.getElementById('pty-total-out').textContent = fmt(t.out);
-    var net = t.net || 0;
-    document.getElementById('pty-total-net').textContent = (net < 0 ? '− ' : '') + fmt(Math.abs(net));
-    document.getElementById('pty-net-card').classList.toggle('fin-net-negative', net < 0);
-}
-
-function renderPettyList(entries) {
-    pettyEntriesCache = entries;
-    if (!entries.length) {
-        document.getElementById('petty-list').innerHTML =
-            '<p class="emp-empty">No petty cash entries yet for this period.</p>';
-        return;
-    }
-    var rows = entries.map(function(e) {
-        var sign = e.type === 'in' ? '+' : '−';
-        var cls  = e.type === 'in' ? 'fin-row-in' : 'fin-row-out';
-        return '<tr class="' + cls + '">' +
-            '<td class="fin-date">' + escFin(e.date) + '</td>' +
-            '<td class="fin-desc-cell">' + escFin(e.description) + '</td>' +
-            '<td class="num"><strong>' + sign + ' Rs. ' + Math.round(e.amount).toLocaleString() + '</strong></td>' +
-            '<td class="fin-actions">' +
-                '<button class="finance-edit" title="Edit" onclick="editPettyEntry(\'' + e.id + '\')">Edit</button>' +
-                '<button class="finance-del"  title="Delete" onclick="deletePettyEntry(\'' + e.id + '\')">Delete</button>' +
-            '</td>' +
-        '</tr>';
+    var html = booksCache.map(function(b) {
+        return '<div class="setup-row">' +
+            '<input type="text" class="setup-input" id="bk-' + b.id + '-name" value="' + escFin(b.name) + '">' +
+            '<select class="setup-input" id="bk-' + b.id + '-type">' +
+                '<option value="business"' + (b.type === 'business' ? ' selected' : '') + '>Business</option>' +
+                '<option value="personal"' + (b.type === 'personal' ? ' selected' : '') + '>Personal</option>' +
+            '</select>' +
+            '<button class="setup-btn" onclick="setupSaveBook(\'' + b.id + '\')">Save</button>' +
+        '</div>';
     }).join('');
-    document.getElementById('petty-list').innerHTML =
-        '<div class="finance-table-wrap"><table class="finance-table">' +
-        '<thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th><th></th></tr></thead>' +
-        '<tbody>' + rows + '</tbody></table></div>';
+    document.getElementById('setup-books-list').innerHTML = html;
 }
 
-function deletePettyEntry(id) {
-    if (!confirm('Delete this entry? This cannot be undone.')) return;
-    apiPost('finances-api.php', { ledger: 'petty', action: 'delete', id: id })
-        .then(function(d) {
-            if (d.error) return showPettyAlert(d.error, false);
-            loadPettyTab();
-        });
+function setupCreateBook(e) {
+    e.preventDefault();
+    var name = document.getElementById('newbook-name').value.trim();
+    var type = document.getElementById('newbook-type').value;
+    if (!name) return;
+    apiPost('books-api.php', { action: 'create', name: name, type: type }).then(function(d) {
+        if (d.error) return setupAlert('setup-books-alert', d.error, false);
+        document.getElementById('newbook-name').value = '';
+        setupAlert('setup-books-alert', 'Book created.', true);
+        loadFinanceSetupTab();
+    });
 }
 
-function clearPettyFilter() {
-    document.getElementById('pty-filter-month').value = '';
-    loadPettyTab();
+function setupSaveBook(id) {
+    var name = document.getElementById('bk-' + id + '-name').value.trim();
+    var type = document.getElementById('bk-' + id + '-type').value;
+    apiPost('books-api.php', { action: 'update', id: id, name: name, type: type }).then(function(d) {
+        if (d.error) return setupAlert('setup-books-alert', d.error, false);
+        setupAlert('setup-books-alert', 'Saved.', true);
+    });
+}
+
+function renderSetupAccounts(accs) {
+    if (!accs.length) {
+        document.getElementById('setup-accounts-list').innerHTML =
+            '<p class="emp-empty">No accounts yet. Add one below.</p>';
+        return;
+    }
+    var html = accs.map(function(a) {
+        var bookOpts = '<option value="">Shared</option>' + booksCache.map(function(b) {
+            return '<option value="' + b.id + '"' + (b.id === a.book_id ? ' selected' : '') + '>' + escFin(b.name) + '</option>';
+        }).join('');
+        var types = ['bank','cash','wallet','crypto'];
+        var typeOpts = types.map(function(t) {
+            return '<option value="' + t + '"' + (t === a.type ? ' selected' : '') + '>' + t + '</option>';
+        }).join('');
+        var currencies = ['PKR','USDT','USD','EUR','AED','GBP'];
+        var curOpts = currencies.map(function(c) {
+            return '<option value="' + c + '"' + (c === a.currency ? ' selected' : '') + '>' + c + '</option>';
+        }).join('');
+
+        return '<div class="setup-row setup-row-wide ' + (a.archived == 1 ? 'archived' : '') + '">' +
+            '<input type="text" class="setup-input" id="ac-' + a.id + '-name" value="' + escFin(a.name) + '">' +
+            '<select class="setup-input" id="ac-' + a.id + '-type">' + typeOpts + '</select>' +
+            '<select class="setup-input" id="ac-' + a.id + '-cur">' + curOpts + '</select>' +
+            '<select class="setup-input" id="ac-' + a.id + '-book">' + bookOpts + '</select>' +
+            '<input type="number" class="setup-input" id="ac-' + a.id + '-opening" value="' + (a.opening_balance || 0) + '" step="0.01">' +
+            '<span class="setup-balance">' + fmtMoney(a.balance, a.currency) + '</span>' +
+            '<button class="setup-btn" onclick="setupSaveAccount(\'' + a.id + '\')">Save</button>' +
+            '<button class="setup-btn-warn" onclick="setupArchiveAccount(\'' + a.id + '\', ' + (a.archived == 1 ? '0' : '1') + ')">' +
+                (a.archived == 1 ? 'Unarchive' : 'Archive') +
+            '</button>' +
+        '</div>';
+    }).join('');
+    document.getElementById('setup-accounts-list').innerHTML = html;
+}
+
+function setupCreateAccount(e) {
+    e.preventDefault();
+    var payload = {
+        action:          'create',
+        name:            document.getElementById('newacc-name').value.trim(),
+        type:            document.getElementById('newacc-type').value,
+        currency:        document.getElementById('newacc-currency').value,
+        book_id:         document.getElementById('newacc-book').value,
+        opening_balance: parseFloat(document.getElementById('newacc-opening').value) || 0,
+        notes:           document.getElementById('newacc-notes').value.trim(),
+    };
+    apiPost('accounts-api.php', payload).then(function(d) {
+        if (d.error) return setupAlert('setup-accounts-alert', d.error, false);
+        document.getElementById('newacc-name').value = '';
+        document.getElementById('newacc-opening').value = '0';
+        document.getElementById('newacc-notes').value = '';
+        setupAlert('setup-accounts-alert', 'Account created.', true);
+        loadFinanceSetupTab();
+    });
+}
+
+function setupSaveAccount(id) {
+    var payload = {
+        action:          'update',
+        id:              id,
+        name:            document.getElementById('ac-' + id + '-name').value.trim(),
+        type:            document.getElementById('ac-' + id + '-type').value,
+        currency:        document.getElementById('ac-' + id + '-cur').value,
+        book_id:         document.getElementById('ac-' + id + '-book').value,
+        opening_balance: parseFloat(document.getElementById('ac-' + id + '-opening').value) || 0,
+    };
+    apiPost('accounts-api.php', payload).then(function(d) {
+        if (d.error) return setupAlert('setup-accounts-alert', d.error, false);
+        setupAlert('setup-accounts-alert', 'Saved.', true);
+        loadFinanceSetupTab();
+    });
+}
+
+function setupArchiveAccount(id, flag) {
+    apiPost('accounts-api.php', { action: 'archive', id: id, archived: flag }).then(function(d) {
+        if (d.error) return setupAlert('setup-accounts-alert', d.error, false);
+        loadFinanceSetupTab();
+    });
+}
+
+function renderSetupCategories(cats) {
+    if (!cats.length) {
+        document.getElementById('setup-categories-list').innerHTML =
+            '<p class="emp-empty">No categories yet. Add some below.</p>';
+        return;
+    }
+    var html = cats.map(function(c) {
+        var bookOpts = '<option value="">Any book</option>' + booksCache.map(function(b) {
+            return '<option value="' + b.id + '"' + (b.id === c.book_scope ? ' selected' : '') + '>' + escFin(b.name) + '</option>';
+        }).join('');
+        var parentOpts = '<option value="">— top-level —</option>' + cats
+            .filter(function(p) { return p.id !== c.id && p.type === c.type; })
+            .map(function(p) {
+                return '<option value="' + p.id + '"' + (p.id === c.parent_id ? ' selected' : '') + '>' + escFin(p.name) + '</option>';
+            }).join('');
+        return '<div class="setup-row setup-row-wide ' + (c.archived == 1 ? 'archived' : '') + '">' +
+            '<span class="cat-type-pill cat-type-' + c.type + '">' + c.type + '</span>' +
+            '<input type="text" class="setup-input" id="ct-' + c.id + '-name" value="' + escFin(c.name) + '">' +
+            '<select class="setup-input" id="ct-' + c.id + '-parent">' + parentOpts + '</select>' +
+            '<select class="setup-input" id="ct-' + c.id + '-book">' + bookOpts + '</select>' +
+            '<input type="text" class="setup-input" id="ct-' + c.id + '-emp" value="' + escFin(c.linked_employee || '') + '" placeholder="employee (optional)">' +
+            '<span class="setup-balance">' + (c.tx_count || 0) + ' tx · ' + fmtMoney(c.tx_total || 0, '') + '</span>' +
+            '<button class="setup-btn" onclick="setupSaveCategory(\'' + c.id + '\', \'' + c.type + '\')">Save</button>' +
+            '<button class="setup-btn-warn" onclick="setupArchiveCategory(\'' + c.id + '\', ' + (c.archived == 1 ? '0' : '1') + ')">' +
+                (c.archived == 1 ? 'Unarchive' : 'Archive') +
+            '</button>' +
+        '</div>';
+    }).join('');
+    document.getElementById('setup-categories-list').innerHTML = html;
+}
+
+function setupCreateCategory(e) {
+    e.preventDefault();
+    var payload = {
+        action:          'create',
+        name:            document.getElementById('newcat-name').value.trim(),
+        type:            document.getElementById('newcat-type').value,
+        parent_id:       document.getElementById('newcat-parent').value,
+        book_scope:      document.getElementById('newcat-book').value,
+        linked_employee: document.getElementById('newcat-employee').value.trim(),
+    };
+    apiPost('categories-api.php', payload).then(function(d) {
+        if (d.error) return setupAlert('setup-categories-alert', d.error, false);
+        document.getElementById('newcat-name').value = '';
+        document.getElementById('newcat-employee').value = '';
+        setupAlert('setup-categories-alert', 'Category created.', true);
+        loadFinanceSetupTab();
+    });
+}
+
+function setupSaveCategory(id, type) {
+    var payload = {
+        action:          'update',
+        id:              id,
+        name:            document.getElementById('ct-' + id + '-name').value.trim(),
+        type:            type,
+        parent_id:       document.getElementById('ct-' + id + '-parent').value,
+        book_scope:      document.getElementById('ct-' + id + '-book').value,
+        linked_employee: document.getElementById('ct-' + id + '-emp').value.trim(),
+    };
+    apiPost('categories-api.php', payload).then(function(d) {
+        if (d.error) return setupAlert('setup-categories-alert', d.error, false);
+        setupAlert('setup-categories-alert', 'Saved.', true);
+        loadFinanceSetupTab();
+    });
+}
+
+function setupArchiveCategory(id, flag) {
+    apiPost('categories-api.php', { action: 'archive', id: id, archived: flag }).then(function(d) {
+        if (d.error) return setupAlert('setup-categories-alert', d.error, false);
+        loadFinanceSetupTab();
+    });
+}
+
+function setupSyncEmployeeCategories() {
+    var sel = document.getElementById('newcat-parent');
+    var parentId = sel ? sel.value : '';
+    if (!parentId) {
+        var picked = prompt('Paste the parent category ID (an expense category, e.g. "Salaries") to sync employees under:');
+        if (!picked) return;
+        parentId = picked;
+    }
+    apiPost('categories-api.php', { action: 'sync_employee_salary_categories', parent_id: parentId }).then(function(d) {
+        if (d.error) return setupAlert('setup-categories-alert', d.error, false);
+        var msg = d.created.length ? ('Created ' + d.created.length + ' employee categories: ' + d.created.join(', '))
+                                   : 'No new categories — all employees already have one.';
+        setupAlert('setup-categories-alert', msg, true);
+        loadFinanceSetupTab();
+    });
 }
 </script>
 
