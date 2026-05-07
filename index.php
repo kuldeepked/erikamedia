@@ -803,9 +803,23 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
              FINANCE SETUP — books / accounts / categories CRUD
         ───────────────────────────────────── -->
         <div id="tab-fin-setup" class="tab-content">
+
+            <div class="setup-toolbar">
+                <div class="setup-toolbar-text">
+                    <strong>New here?</strong> One click creates the typical accounts &amp; categories
+                    for a business + personal + charity setup. Anything you already have is skipped &mdash; it&rsquo;s safe to re-run.
+                </div>
+                <button type="button" class="btn-suggest" onclick="seedSuggestedSetup()">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path d="M5 12l5 5L20 7"/>
+                    </svg>
+                    Apply suggested setup
+                </button>
+            </div>
+
             <div class="card">
                 <div class="card-title">Books</div>
-                <div class="card-subtitle">Top-level ledgers. Erika Media (business) and Kuldeep (personal) are seeded; you can rename or add more.</div>
+                <div class="card-subtitle">Top-level ledgers. Each book is a separate "wallet" of money &mdash; e.g. Erika Media (business), you (personal), or a charity fund. Transfers between books are explicit, so you always know whose money is whose.</div>
                 <div id="setup-books-alert" class="team-alert"></div>
                 <div id="setup-books-list"><p class="emp-empty">Loading&hellip;</p></div>
                 <details class="setup-add">
@@ -828,8 +842,8 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             <div class="card">
                 <div class="card-title">Accounts</div>
                 <div class="card-subtitle">
-                    Where money physically sits — bank accounts, cash, crypto wallets, Binance, etc.
-                    Account-currency must match the transactions you record into it.
+                    Where money physically sits &mdash; an HBL bank account, your cash drawer, an Easypaisa wallet, Binance.
+                    Each account belongs to one book (or is "shared"). Naming tip: prefix with the bank, e.g. "HBL &mdash; Erika Media current".
                 </div>
                 <div id="setup-accounts-alert" class="team-alert"></div>
                 <div id="setup-accounts-list"><p class="emp-empty">Loading&hellip;</p></div>
@@ -877,8 +891,8 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             <div class="card">
                 <div class="card-title">Categories</div>
                 <div class="card-subtitle">
-                    Chart of accounts. Every transaction is tagged with one of these so you can see "all-time spent on Electricity" etc.
-                    Use parents (e.g. "Salaries") with children per employee.
+                    What the money was for &mdash; "Electricity", "Salaries", "Charity Giving". Independent of which account paid it.
+                    Use parents (e.g. "Salaries") with children per employee. Scope a category to one book if it only applies there.
                 </div>
                 <div id="setup-categories-alert" class="team-alert"></div>
                 <div id="setup-categories-list"><p class="emp-empty">Loading&hellip;</p></div>
@@ -2185,16 +2199,30 @@ function renderSetupBooks() {
     if (!booksCache.length) {
         document.getElementById('setup-books-list').innerHTML = '<p class="emp-empty">No books.</p>'; return;
     }
-    var html = booksCache.map(function(b) {
+    var html = '<div class="setup-list">' + booksCache.map(function(b) {
+        var typeClass = b.type === 'business' ? 'book-type-business' : 'book-type-personal';
         return '<div class="setup-row">' +
-            '<input type="text" class="setup-input" id="bk-' + b.id + '-name" value="' + escFin(b.name) + '">' +
-            '<select class="setup-input" id="bk-' + b.id + '-type">' +
-                '<option value="business"' + (b.type === 'business' ? ' selected' : '') + '>Business</option>' +
-                '<option value="personal"' + (b.type === 'personal' ? ' selected' : '') + '>Personal</option>' +
-            '</select>' +
-            '<button class="setup-btn" onclick="setupSaveBook(\'' + b.id + '\')">Save</button>' +
+            '<div class="setup-row-head">' +
+                '<span class="book-type-pill ' + typeClass + '">' + b.type + '</span>' +
+                '<span class="setup-row-title">' + escFin(b.name) + '</span>' +
+                '<div class="setup-row-actions">' +
+                    '<button class="setup-btn" onclick="setupSaveBook(\'' + b.id + '\')">Save</button>' +
+                    '<button class="setup-btn-warn" onclick="setupArchiveBook(\'' + b.id + '\', \'' + escFin(b.name).replace(/'/g, "\\'") + '\')">Delete</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="setup-row-fields">' +
+                '<div class="sf-field"><label>Name</label>' +
+                    '<input type="text" id="bk-' + b.id + '-name" value="' + escFin(b.name) + '">' +
+                '</div>' +
+                '<div class="sf-field"><label>Type</label>' +
+                    '<select id="bk-' + b.id + '-type">' +
+                        '<option value="business"' + (b.type === 'business' ? ' selected' : '') + '>Business</option>' +
+                        '<option value="personal"' + (b.type === 'personal' ? ' selected' : '') + '>Personal</option>' +
+                    '</select>' +
+                '</div>' +
+            '</div>' +
         '</div>';
-    }).join('');
+    }).join('') + '</div>';
     document.getElementById('setup-books-list').innerHTML = html;
 }
 
@@ -2220,13 +2248,24 @@ function setupSaveBook(id) {
     });
 }
 
+function setupArchiveBook(id, name) {
+    if (!confirm('Delete the book "' + name + '"?\n\n' +
+                 'It will be hidden from all lists. If it has any transactions, ' +
+                 'the server will refuse and tell you to void or move them first.')) return;
+    apiPost('books-api.php', { action: 'archive', id: id, archived: 1 }).then(function(d) {
+        if (d.error) return setupAlert('setup-books-alert', d.error, false);
+        setupAlert('setup-books-alert', 'Book "' + name + '" deleted.', true);
+        loadFinanceSetupTab();
+    });
+}
+
 function renderSetupAccounts(accs) {
     if (!accs.length) {
         document.getElementById('setup-accounts-list').innerHTML =
             '<p class="emp-empty">No accounts yet. Add one below.</p>';
         return;
     }
-    var html = accs.map(function(a) {
+    var html = '<div class="setup-list">' + accs.map(function(a) {
         var bookOpts = '<option value="">Shared</option>' + booksCache.map(function(b) {
             return '<option value="' + b.id + '"' + (b.id === a.book_id ? ' selected' : '') + '>' + escFin(b.name) + '</option>';
         }).join('');
@@ -2239,19 +2278,40 @@ function renderSetupAccounts(accs) {
             return '<option value="' + c + '"' + (c === a.currency ? ' selected' : '') + '>' + c + '</option>';
         }).join('');
 
-        return '<div class="setup-row setup-row-wide ' + (a.archived == 1 ? 'archived' : '') + '">' +
-            '<input type="text" class="setup-input" id="ac-' + a.id + '-name" value="' + escFin(a.name) + '">' +
-            '<select class="setup-input" id="ac-' + a.id + '-type">' + typeOpts + '</select>' +
-            '<select class="setup-input" id="ac-' + a.id + '-cur">' + curOpts + '</select>' +
-            '<select class="setup-input" id="ac-' + a.id + '-book">' + bookOpts + '</select>' +
-            '<input type="number" class="setup-input" id="ac-' + a.id + '-opening" value="' + (a.opening_balance || 0) + '" step="0.01">' +
-            '<span class="setup-balance">' + fmtMoney(a.balance, a.currency) + '</span>' +
-            '<button class="setup-btn" onclick="setupSaveAccount(\'' + a.id + '\')">Save</button>' +
-            '<button class="setup-btn-warn" onclick="setupArchiveAccount(\'' + a.id + '\', ' + (a.archived == 1 ? '0' : '1') + ')">' +
-                (a.archived == 1 ? 'Unarchive' : 'Archive') +
-            '</button>' +
+        var bal      = parseFloat(a.balance || 0);
+        var balClass = bal < 0 ? ' is-negative' : '';
+
+        return '<div class="setup-row ' + (a.archived == 1 ? 'archived' : '') + '">' +
+            '<div class="setup-row-head">' +
+                '<span class="acc-type-pill">' + a.type + '</span>' +
+                '<span class="setup-row-title">' + escFin(a.name) + '</span>' +
+                '<span class="setup-row-balance' + balClass + '">' + fmtMoney(a.balance, a.currency) + '</span>' +
+                '<div class="setup-row-actions">' +
+                    '<button class="setup-btn" onclick="setupSaveAccount(\'' + a.id + '\')">Save</button>' +
+                    '<button class="setup-btn-warn" onclick="setupArchiveAccount(\'' + a.id + '\', ' + (a.archived == 1 ? '0' : '1') + ')">' +
+                        (a.archived == 1 ? 'Unarchive' : 'Archive') +
+                    '</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="setup-row-fields">' +
+                '<div class="sf-field"><label>Name</label>' +
+                    '<input type="text" id="ac-' + a.id + '-name" value="' + escFin(a.name) + '">' +
+                '</div>' +
+                '<div class="sf-field"><label>Type</label>' +
+                    '<select id="ac-' + a.id + '-type">' + typeOpts + '</select>' +
+                '</div>' +
+                '<div class="sf-field"><label>Currency</label>' +
+                    '<select id="ac-' + a.id + '-cur">' + curOpts + '</select>' +
+                '</div>' +
+                '<div class="sf-field"><label>Book</label>' +
+                    '<select id="ac-' + a.id + '-book">' + bookOpts + '</select>' +
+                '</div>' +
+                '<div class="sf-field"><label>Opening balance</label>' +
+                    '<input type="number" id="ac-' + a.id + '-opening" value="' + (a.opening_balance || 0) + '" step="0.01">' +
+                '</div>' +
+            '</div>' +
         '</div>';
-    }).join('');
+    }).join('') + '</div>';
     document.getElementById('setup-accounts-list').innerHTML = html;
 }
 
@@ -2306,7 +2366,7 @@ function renderSetupCategories(cats) {
             '<p class="emp-empty">No categories yet. Add some below.</p>';
         return;
     }
-    var html = cats.map(function(c) {
+    var html = '<div class="setup-list">' + cats.map(function(c) {
         var bookOpts = '<option value="">Any book</option>' + booksCache.map(function(b) {
             return '<option value="' + b.id + '"' + (b.id === c.book_scope ? ' selected' : '') + '>' + escFin(b.name) + '</option>';
         }).join('');
@@ -2315,19 +2375,34 @@ function renderSetupCategories(cats) {
             .map(function(p) {
                 return '<option value="' + p.id + '"' + (p.id === c.parent_id ? ' selected' : '') + '>' + escFin(p.name) + '</option>';
             }).join('');
-        return '<div class="setup-row setup-row-wide ' + (c.archived == 1 ? 'archived' : '') + '">' +
-            '<span class="cat-type-pill cat-type-' + c.type + '">' + c.type + '</span>' +
-            '<input type="text" class="setup-input" id="ct-' + c.id + '-name" value="' + escFin(c.name) + '">' +
-            '<select class="setup-input" id="ct-' + c.id + '-parent">' + parentOpts + '</select>' +
-            '<select class="setup-input" id="ct-' + c.id + '-book">' + bookOpts + '</select>' +
-            '<input type="text" class="setup-input" id="ct-' + c.id + '-emp" value="' + escFin(c.linked_employee || '') + '" placeholder="employee (optional)">' +
-            '<span class="setup-balance">' + (c.tx_count || 0) + ' tx · ' + fmtMoney(c.tx_total || 0, '') + '</span>' +
-            '<button class="setup-btn" onclick="setupSaveCategory(\'' + c.id + '\', \'' + c.type + '\')">Save</button>' +
-            '<button class="setup-btn-warn" onclick="setupArchiveCategory(\'' + c.id + '\', ' + (c.archived == 1 ? '0' : '1') + ')">' +
-                (c.archived == 1 ? 'Unarchive' : 'Archive') +
-            '</button>' +
+        return '<div class="setup-row ' + (c.archived == 1 ? 'archived' : '') + '">' +
+            '<div class="setup-row-head">' +
+                '<span class="cat-type-pill cat-type-' + c.type + '">' + c.type + '</span>' +
+                '<span class="setup-row-title">' + escFin(c.name) + '</span>' +
+                '<span class="setup-row-meta">' + (c.tx_count || 0) + ' tx · ' + fmtMoney(c.tx_total || 0, '') + '</span>' +
+                '<div class="setup-row-actions">' +
+                    '<button class="setup-btn" onclick="setupSaveCategory(\'' + c.id + '\', \'' + c.type + '\')">Save</button>' +
+                    '<button class="setup-btn-warn" onclick="setupArchiveCategory(\'' + c.id + '\', ' + (c.archived == 1 ? '0' : '1') + ')">' +
+                        (c.archived == 1 ? 'Unarchive' : 'Archive') +
+                    '</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="setup-row-fields">' +
+                '<div class="sf-field"><label>Name</label>' +
+                    '<input type="text" id="ct-' + c.id + '-name" value="' + escFin(c.name) + '">' +
+                '</div>' +
+                '<div class="sf-field"><label>Parent</label>' +
+                    '<select id="ct-' + c.id + '-parent">' + parentOpts + '</select>' +
+                '</div>' +
+                '<div class="sf-field"><label>Book scope</label>' +
+                    '<select id="ct-' + c.id + '-book">' + bookOpts + '</select>' +
+                '</div>' +
+                '<div class="sf-field"><label>Linked employee (optional)</label>' +
+                    '<input type="text" id="ct-' + c.id + '-emp" value="' + escFin(c.linked_employee || '') + '" placeholder="employee name">' +
+                '</div>' +
+            '</div>' +
         '</div>';
-    }).join('');
+    }).join('') + '</div>';
     document.getElementById('setup-categories-list').innerHTML = html;
 }
 
@@ -2372,6 +2447,149 @@ function setupArchiveCategory(id, flag) {
         if (d.error) return setupAlert('setup-categories-alert', d.error, false);
         loadFinanceSetupTab();
     });
+}
+
+// ── Suggested Setup ───────────────────────────────────────────────
+// One-click idempotent seed. Looks at existing books/accounts/categories
+// and only creates what's missing (matched by name, case-insensitive).
+function seedSuggestedSetup() {
+    if (!confirm('Create the suggested set of accounts and categories?\n\n' +
+                 'This will skip anything you already have, so it\'s safe to run again. ' +
+                 'You can rename or delete anything afterwards.')) return;
+
+    setupAlert('setup-books-alert', 'Setting things up…', true);
+
+    // 1. Make sure required books exist
+    var requiredBooks = [
+        { name: 'Erika Media', type: 'business' },
+        { name: 'Kuldeep',     type: 'personal' },
+        { name: 'Charity',     type: 'personal' },
+    ];
+
+    fetch('books-api.php')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var existing = (d.books || []).map(function(b) { return (b.name || '').toLowerCase(); });
+            // Already-lowercased existing names; create only missing books.
+            var toCreate = requiredBooks.filter(function(b) {
+                return existing.indexOf(b.name.toLowerCase()) === -1;
+            });
+            return Promise.all(toCreate.map(function(b) {
+                return apiPost('books-api.php', { action: 'create', name: b.name, type: b.type });
+            }));
+        })
+        // 2. Reload books, then create accounts
+        .then(function() { return fetch('books-api.php').then(function(r) { return r.json(); }); })
+        .then(function(d) {
+            var books = d.books || [];
+            booksCache = books;
+            var bookByName = {};
+            books.forEach(function(b) { bookByName[(b.name || '').toLowerCase()] = b.id; });
+
+            // Lookup helpers — find a book by any of several candidate names
+            function findBook(/* ...candidates */) {
+                for (var i = 0; i < arguments.length; i++) {
+                    var id = bookByName[arguments[i].toLowerCase()];
+                    if (id) return id;
+                }
+                return null;
+            }
+
+            var biz      = findBook('Erika Media');
+            var personal = findBook('Kuldeep', 'Kuldeep (Personal)', 'Personal');
+            var charity  = findBook('Charity', 'CHARITY');
+
+            var seedAccounts = [
+                // Business
+                { name: 'HBL — Erika Media',  type: 'bank',   currency: 'PKR', book_id: biz },
+                { name: 'Easypaisa — Erika Media', type: 'wallet', currency: 'PKR', book_id: biz },
+                // Personal
+                { name: 'HBL — Personal',     type: 'bank',   currency: 'PKR', book_id: personal },
+                { name: 'Savings',            type: 'bank',   currency: 'PKR', book_id: personal },
+                { name: 'Investments',        type: 'bank',   currency: 'PKR', book_id: personal },
+                { name: 'Personal Cash',      type: 'cash',   currency: 'PKR', book_id: personal },
+                { name: 'Easypaisa — Personal', type: 'wallet', currency: 'PKR', book_id: personal },
+                // Charity
+                { name: 'Charity Bank',       type: 'bank',   currency: 'PKR', book_id: charity },
+                { name: 'Charity Cash',       type: 'cash',   currency: 'PKR', book_id: charity },
+            ].filter(function(a) { return a.book_id; });
+
+            return fetch('accounts-api.php?include_archived=1')
+                .then(function(r) { return r.json(); })
+                .then(function(ad) {
+                    var existingAcc = (ad.accounts || []).map(function(a) { return (a.name || '').toLowerCase(); });
+                    var toCreate = seedAccounts.filter(function(a) {
+                        return existingAcc.indexOf(a.name.toLowerCase()) === -1;
+                    });
+                    return Promise.all(toCreate.map(function(a) {
+                        return apiPost('accounts-api.php', {
+                            action:          'create',
+                            name:            a.name,
+                            type:            a.type,
+                            currency:        a.currency,
+                            book_id:         a.book_id,
+                            opening_balance: 0,
+                            notes:           '',
+                        });
+                    })).then(function() { return { biz: biz, personal: personal, charity: charity }; });
+                });
+        })
+        // 3. Create categories
+        .then(function(ctx) {
+            var seedCats = [
+                // Income
+                { name: 'Recruitment Revenue', type: 'income',  book_scope: ctx.biz },
+                { name: 'Salary Received',     type: 'income',  book_scope: ctx.personal },
+                { name: 'Donations Received',  type: 'income',  book_scope: ctx.charity },
+                // Business expenses
+                { name: 'Salaries',            type: 'expense', book_scope: ctx.biz },
+                { name: 'Rent',                type: 'expense', book_scope: ctx.biz },
+                { name: 'Utilities',           type: 'expense', book_scope: ctx.biz },
+                { name: 'Internet & Phone',    type: 'expense', book_scope: ctx.biz },
+                { name: 'Office Supplies',     type: 'expense', book_scope: ctx.biz },
+                { name: 'Software / SaaS',     type: 'expense', book_scope: ctx.biz },
+                { name: 'Marketing',           type: 'expense', book_scope: ctx.biz },
+                { name: 'Bank Fees',           type: 'expense', book_scope: null },
+                // Personal expenses
+                { name: 'Groceries',           type: 'expense', book_scope: ctx.personal },
+                { name: 'Transport',           type: 'expense', book_scope: ctx.personal },
+                { name: 'Health',              type: 'expense', book_scope: ctx.personal },
+                { name: 'Eating Out',          type: 'expense', book_scope: ctx.personal },
+                { name: 'Charity Giving',      type: 'expense', book_scope: ctx.personal },
+                // Charity expenses
+                { name: 'Charity Disbursement', type: 'expense', book_scope: ctx.charity },
+            ].filter(function(c) { return c.book_scope !== undefined; });
+
+            return fetch('categories-api.php?include_archived=1')
+                .then(function(r) { return r.json(); })
+                .then(function(cd) {
+                    var existingCats = (cd.categories || []).map(function(c) { return (c.name || '').toLowerCase(); });
+                    var toCreate = seedCats.filter(function(c) {
+                        return existingCats.indexOf(c.name.toLowerCase()) === -1;
+                    });
+                    return Promise.all(toCreate.map(function(c) {
+                        return apiPost('categories-api.php', {
+                            action:          'create',
+                            name:            c.name,
+                            type:            c.type,
+                            parent_id:       '',
+                            book_scope:      c.book_scope || '',
+                            linked_employee: '',
+                        });
+                    })).then(function(results) {
+                        return { created: results.length };
+                    });
+                });
+        })
+        .then(function(result) {
+            setupAlert('setup-books-alert',
+                'Suggested setup applied. Reloading…', true);
+            loadFinanceSetupTab();
+        })
+        .catch(function(err) {
+            setupAlert('setup-books-alert',
+                'Something went wrong: ' + (err.message || err), false);
+        });
 }
 
 function setupSyncEmployeeCategories() {

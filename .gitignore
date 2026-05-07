@@ -1,5 +1,6 @@
 .claude/
 .deploy/
+.deploy-backup/
 
 # Sensitive: contains bcrypt-hashed admin credentials. Never commit.
 .admin.json
