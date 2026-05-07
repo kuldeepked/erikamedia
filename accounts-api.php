@@ -9,8 +9,11 @@ const ACC_CURRENCIES = ['PKR','USD','USDT','EUR','AED','GBP'];
 $pdo = db();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    // Accounts are physical containers (HBL, UBL, Cash, etc.) — they hold
+    // money that may belong to multiple books simultaneously. We never
+    // filter the account list by book; that filter is applied to
+    // transactions and computed slices, not to the accounts themselves.
     $includeArchived = !empty($_GET['include_archived']);
-    $bookId          = trim((string) ($_GET['book_id'] ?? ''));
 
     $sql  = 'SELECT a.*,
                     a.opening_balance
@@ -22,19 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                                   AND type IN ("expense","transfer_out")), 0)
                     AS balance
              FROM accounts a';
-    $where = [];
-    $args  = [];
-    if (!$includeArchived) $where[] = 'a.archived = 0';
-    if ($bookId !== '') {
-        $where[] = '(a.book_id = ? OR a.book_id IS NULL)';
-        $args[]  = $bookId;
-    }
-    if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
+    if (!$includeArchived) $sql .= ' WHERE a.archived = 0';
     $sql .= ' ORDER BY a.display_order, a.name';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($args);
-    jsonResponse(['accounts' => $stmt->fetchAll()]);
+    jsonResponse(['accounts' => $pdo->query($sql)->fetchAll()]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

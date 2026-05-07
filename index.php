@@ -842,8 +842,9 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             <div class="card">
                 <div class="card-title">Accounts</div>
                 <div class="card-subtitle">
-                    Where money physically sits &mdash; an HBL bank account, your cash drawer, an Easypaisa wallet, Binance.
-                    Each account belongs to one book (or is "shared"). Naming tip: prefix with the bank, e.g. "HBL &mdash; Erika Media current".
+                    Where money physically sits &mdash; a bank account, cash drawer, Easypaisa wallet, Binance, etc.
+                    The same account can hold money for multiple books at once (e.g. UBL holding both business revenue and your personal share of a salary).
+                    The optional <strong>Primary book</strong> below is a default hint for new transactions and where opening balance is attributed; it does not restrict which books may use the account.
                 </div>
                 <div id="setup-accounts-alert" class="team-alert"></div>
                 <div id="setup-accounts-list"><p class="emp-empty">Loading&hellip;</p></div>
@@ -1452,8 +1453,7 @@ function showTab(tab, el) {
 
 // ── Finances (new SQLite-backed system) ───────────────────────────────────
 var booksCache       = [];
-var accountsCache    = [];   // accounts visible to current book (book-scoped or shared)
-var allAccountsCache = [];   // every account (used by Split form to pick from any book)
+var accountsCache    = [];   // every account (physical containers — not book-scoped)
 var categoriesCache  = [];   // categories visible to current book (or shared)
 var currentBook      = null; // selected book id
 var currentSub       = 'entries';
@@ -1514,15 +1514,12 @@ function selectBook(id) {
 }
 
 function loadAccounts() {
-    return fetch('accounts-api.php?book_id=' + encodeURIComponent(currentBook))
+    // Accounts are physical (HBL, UBL, Cash…) and shown unfiltered in
+    // every form. The book filter only narrows transactions and slices.
+    return fetch('accounts-api.php')
         .then(function(r) { return r.json(); })
         .then(function(d) {
             accountsCache = d.accounts || [];
-            return fetch('accounts-api.php');
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            allAccountsCache = d.accounts || [];
             populateAccountFilter();
             populateAccountSelects();
         });
@@ -1566,8 +1563,7 @@ function populateAccountSelects() {
         if (!sel) return;
         var cur = sel.value;
         sel.innerHTML = '<option value="">— pick account —</option>';
-        var pool = (id === 'spl-pair-account') ? allAccountsCache : accountsCache;
-        pool.forEach(function(a) {
+        accountsCache.forEach(function(a) {
             sel.add(new Option(a.name + ' (' + a.currency + ')', a.id));
         });
         if (cur) sel.value = cur;
@@ -2059,8 +2055,12 @@ function filterByCategory(catId) {
 }
 
 // ── Account balances ──────────────────────────────────────────────────────
+// Each account is a physical container. We show the real-world balance
+// PLUS a per-book breakdown so you can see "of which Charity owns 64k".
 function loadAccountBalances() {
-    fetch('reports-api.php?type=account_balances')
+    var url = 'reports-api.php?type=account_balances';
+    if (currentBook) url += '&book_id=' + encodeURIComponent(currentBook);
+    fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(d) {
             renderAccountBalances(d.accounts || []);
@@ -2073,16 +2073,51 @@ function renderAccountBalances(accs) {
             '<p class="emp-empty">No accounts yet. Add some in Finance Setup → Accounts.</p>';
         return;
     }
+
+    var currentBookName = '';
+    if (currentBook) {
+        var b = booksCache.find(function(b) { return b.id === currentBook; });
+        if (b) currentBookName = b.name;
+    }
+
     var html = accs.map(function(a) {
-        var book = booksCache.find(function(b) { return b.id === a.book_id; });
-        var bookLabel = book ? book.name : 'Shared';
+        var byBook = a.by_book || [];
+        var sliceLine = '';
+        if (currentBook && currentBookName) {
+            var slice = (a.book_balance != null) ? a.book_balance : 0;
+            var sliceClass = slice < 0 ? ' is-negative' : (slice > 0 ? ' is-positive' : ' is-zero');
+            sliceLine = '<div class="acc-slice' + sliceClass + '">' +
+                escFin(currentBookName) + '’s share: <strong>' + fmtMoney(slice, a.currency) + '</strong>' +
+            '</div>';
+        }
+
+        var breakdownHtml = '';
+        if (byBook.length > 0) {
+            breakdownHtml = '<div class="acc-breakdown">' + byBook.map(function(bb) {
+                var cls = bb.balance < 0 ? ' is-negative' : '';
+                var isCurrent = currentBook && bb.book_id === currentBook ? ' is-current' : '';
+                return '<div class="acc-breakdown-row' + cls + isCurrent + '">' +
+                    '<span class="acc-bb-name">' + escFin(bb.book_name) + '</span>' +
+                    '<span class="acc-bb-amt">' + fmtMoney(bb.balance, a.currency) + '</span>' +
+                '</div>';
+            }).join('') + '</div>';
+        }
+
         return '<div class="account-card" onclick="filterByAccount(\'' + a.id + '\')">' +
-            '<div class="acc-name">' + escFin(a.name) + '</div>' +
-            '<div class="acc-meta">' + escFin(a.type) + ' · ' + escFin(bookLabel) + ' · ' + a.tx_count + ' tx</div>' +
+            '<div class="acc-card-head">' +
+                '<span class="acc-name">' + escFin(a.name) + '</span>' +
+                '<span class="acc-type-pill">' + escFin(a.type) + '</span>' +
+            '</div>' +
+            '<div class="acc-balance-label">Physical balance</div>' +
             '<div class="acc-balance">' + fmtMoney(a.balance, a.currency) + '</div>' +
+            sliceLine +
+            breakdownHtml +
+            '<div class="acc-meta">' + a.tx_count + ' tx · click to filter</div>' +
         '</div>';
     }).join('');
-    document.getElementById('account-balances-list').innerHTML = '<div class="account-grid">' + html + '</div>';
+    document.getElementById('account-balances-list').innerHTML =
+        '<div class="acc-help">Each card shows the real-world balance of that account. Pick a book at the top to see its slice. Same bank can hold money for multiple books at once.</div>' +
+        '<div class="account-grid">' + html + '</div>';
 }
 
 function filterByAccount(accId) {
@@ -2303,7 +2338,7 @@ function renderSetupAccounts(accs) {
                 '<div class="sf-field"><label>Currency</label>' +
                     '<select id="ac-' + a.id + '-cur">' + curOpts + '</select>' +
                 '</div>' +
-                '<div class="sf-field"><label>Book</label>' +
+                '<div class="sf-field"><label>Primary book (optional)</label>' +
                     '<select id="ac-' + a.id + '-book">' + bookOpts + '</select>' +
                 '</div>' +
                 '<div class="sf-field"><label>Opening balance</label>' +

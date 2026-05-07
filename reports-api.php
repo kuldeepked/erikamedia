@@ -63,6 +63,17 @@ if ($type === 'category_totals') {
 
 // ─────────────────────────────────────────────────────────────
 // account_balances — opening + signed sum of non-void tx per account.
+//
+// Multi-book aware: accounts are physical containers, but the same
+// bank can hold money belonging to multiple books simultaneously.
+// We return both:
+//   - balance        : physical balance (sum across all books).
+//   - by_book[]      : per-book slice from transactions only.
+//   - book_balance   : (only if ?book_id=X) the slice owned by that book.
+//
+// Note: opening_balance is account-wide. If the account has a primary
+// book_id set, opening_balance is attributed to that book in by_book;
+// otherwise it stays unattributed (visible in physical balance only).
 // ─────────────────────────────────────────────────────────────
 if ($type === 'account_balances') {
     $sql = 'SELECT a.id, a.name, a.type, a.currency, a.book_id, a.opening_balance,
@@ -80,6 +91,69 @@ if ($type === 'account_balances') {
             WHERE a.archived = 0
             ORDER BY a.display_order, a.name';
     $rows = $pdo->query($sql)->fetchAll();
+
+    // Per-book per-account balance from transactions only.
+    $bookSql = 'SELECT t.account_id, t.book_id, b.name AS book_name,
+                       SUM(CASE WHEN t.type IN ("income","transfer_in")  THEN  t.amount
+                                WHEN t.type IN ("expense","transfer_out") THEN -t.amount
+                                ELSE 0 END) AS balance
+                FROM transactions t
+                JOIN books b ON b.id = t.book_id
+                WHERE t.void = 0
+                GROUP BY t.account_id, t.book_id, b.name';
+    $bookRows = $pdo->query($bookSql)->fetchAll();
+
+    $byAccount = [];
+    foreach ($bookRows as $r) {
+        $byAccount[$r['account_id']][] = [
+            'book_id'   => $r['book_id'],
+            'book_name' => $r['book_name'],
+            'balance'   => (float) $r['balance'],
+        ];
+    }
+
+    // Attribute opening_balance to the account's primary book (if any).
+    $bookNameById = [];
+    foreach ($pdo->query('SELECT id, name FROM books')->fetchAll() as $b) {
+        $bookNameById[$b['id']] = $b['name'];
+    }
+
+    foreach ($rows as &$a) {
+        $byBook = $byAccount[$a['id']] ?? [];
+        $opening = (float) $a['opening_balance'];
+        if ($opening !== 0.0 && $a['book_id'] !== null) {
+            $found = false;
+            foreach ($byBook as &$bb) {
+                if ($bb['book_id'] === $a['book_id']) {
+                    $bb['balance'] += $opening;
+                    $found = true;
+                    break;
+                }
+            }
+            unset($bb);
+            if (!$found && isset($bookNameById[$a['book_id']])) {
+                $byBook[] = [
+                    'book_id'   => $a['book_id'],
+                    'book_name' => $bookNameById[$a['book_id']],
+                    'balance'   => $opening,
+                ];
+            }
+        }
+        // Drop zero rows so the UI doesn't show empty slices.
+        $byBook = array_values(array_filter($byBook, fn($b) => abs($b['balance']) > 0.005));
+        // Sort by absolute balance, biggest first.
+        usort($byBook, fn($x, $y) => abs($y['balance']) <=> abs($x['balance']));
+        $a['by_book'] = $byBook;
+
+        if ($bookId !== '') {
+            $slice = 0.0;
+            foreach ($byBook as $bb) {
+                if ($bb['book_id'] === $bookId) { $slice = $bb['balance']; break; }
+            }
+            $a['book_balance'] = $slice;
+        }
+    }
+    unset($a);
 
     // Per-currency net (across the whole list, helpful for dashboard at-a-glance).
     $byCurrency = [];
