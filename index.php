@@ -184,9 +184,9 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Position / Designation *</label>
+                            <label>Department *</label>
                             <select name="position" id="offer-position" required>
-                                <option value="">— Select Designation —</option>
+                                <option value="">— Select Department —</option>
                             </select>
                         </div>
                     </div>
@@ -260,9 +260,9 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Designation *</label>
+                            <label>Department *</label>
                             <select name="designation" id="payslip-designation" required>
-                                <option value="">— Select Designation —</option>
+                                <option value="">— Select Department —</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -485,11 +485,10 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                                    placeholder="e.g. Zunhara Jamil" autocomplete="off" required>
                         </div>
                         <div class="form-group">
-                            <label>Designation *</label>
-                            <input type="text" id="emp-designation"
-                                   list="desig-suggestions"
-                                   placeholder="e.g. Reverse Recruiting Agent" autocomplete="off" required>
-                            <datalist id="desig-suggestions"></datalist>
+                            <label>Department *</label>
+                            <select id="emp-designation" required>
+                                <option value="">— Select Department —</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>Joining Date</label>
@@ -1136,14 +1135,10 @@ function showAdvanceAlert(msg, ok) {
     el._t = setTimeout(function() { el.style.display = 'none'; }, 4000);
 }
 
+var DEPARTMENTS = ['Team Lead', 'Reverse Recruiting Agent', 'Office Boy', 'Quality Assurance', 'Operations'];
+
 // ── Rebuild all dropdowns from teamMembers ────────────────────────────────
 function rebuildDropdowns() {
-    var uniqueDesig = [];
-    teamMembers.forEach(function(m) {
-        if (uniqueDesig.indexOf(m.designation) === -1) uniqueDesig.push(m.designation);
-    });
-    uniqueDesig.sort();
-
     // Employee name selects
     ['offer-name', 'payslip-name', 'act-employee', 'filter-employee'].forEach(function(id) {
         var sel = document.getElementById(id);
@@ -1156,26 +1151,17 @@ function rebuildDropdowns() {
         if (cur) sel.value = cur;
     });
 
-    // Designation selects
-    ['offer-position', 'payslip-designation'].forEach(function(id) {
+    // Department selects (fixed list across the dashboard)
+    ['emp-designation', 'offer-position', 'payslip-designation'].forEach(function(id) {
         var sel = document.getElementById(id);
         if (!sel) return;
         var cur = sel.value;
-        sel.innerHTML = '<option value="">— Select Designation —</option>';
-        uniqueDesig.forEach(function(d) { sel.add(new Option(d, d)); });
+        sel.innerHTML = '<option value="">— Select Department —</option>';
+        DEPARTMENTS.forEach(function(d) { sel.add(new Option(d, d)); });
+        // Keep legacy off-list values so editing existing records doesn't blank the field.
+        if (cur && DEPARTMENTS.indexOf(cur) === -1) sel.add(new Option(cur, cur));
         if (cur) sel.value = cur;
     });
-
-    // Datalist in Manage Team
-    var dl = document.getElementById('desig-suggestions');
-    if (dl) {
-        dl.innerHTML = '';
-        uniqueDesig.forEach(function(d) {
-            var opt = document.createElement('option');
-            opt.value = d;
-            dl.appendChild(opt);
-        });
-    }
 }
 
 // ── Auto-fill from selected employee profile ──────────────────────────────
@@ -1473,7 +1459,7 @@ function renderEmployeeList() {
 
     var advBy = window.advancesByEmployee || {};
     var html = '<table class="emp-table">'
-             + '<thead><tr><th>Name</th><th>Designation</th><th>Joined</th><th>Basic</th><th>Allowance</th>'
+             + '<thead><tr><th>Name</th><th>Department</th><th>Joined</th><th>Basic</th><th>Allowance</th>'
              + '<th>Punctuality</th><th>Outstanding advance</th><th></th></tr></thead><tbody>';
 
     teamMembers.forEach(function(m) {
@@ -1550,7 +1536,7 @@ function saveEmployee(e) {
     };
 
     if (!payload.name || !payload.designation) {
-        showAlert('error', 'Name and designation are required.');
+        showAlert('error', 'Name and department are required.');
         return;
     }
 
