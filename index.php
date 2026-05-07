@@ -1003,6 +1003,7 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
 <script>
 // ── Globals ───────────────────────────────────────────────────────────────
 var teamMembers = <?= json_encode(array_values($employees)) ?>;
+var DEPARTMENTS = ['Team Lead', 'Reverse Recruiting Agent', 'Office Boy', 'Quality Assurance', 'Operations'];
 var CSRF        = document.querySelector('meta[name="csrf-token"]').content;
 var INTERVIEW_RATE = <?= INTERVIEW_RATE ?>;
 
@@ -1134,8 +1135,6 @@ function showAdvanceAlert(msg, ok) {
     clearTimeout(el._t);
     el._t = setTimeout(function() { el.style.display = 'none'; }, 4000);
 }
-
-var DEPARTMENTS = ['Team Lead', 'Reverse Recruiting Agent', 'Office Boy', 'Quality Assurance', 'Operations'];
 
 // ── Rebuild all dropdowns from teamMembers ────────────────────────────────
 function rebuildDropdowns() {
