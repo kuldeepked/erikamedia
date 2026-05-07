@@ -361,4 +361,65 @@ if ($type === 'loans_summary') {
     ]);
 }
 
+// ─────────────────────────────────────────────────────────────
+// employee_advances — same shape as loans_summary but pivoted on the
+// "Employee Advances" account. Used by the team list and the payslip
+// form auto-fill.
+// ─────────────────────────────────────────────────────────────
+if ($type === 'employee_advances') {
+    $accStmt = $pdo->prepare(
+        "SELECT id, name, currency FROM accounts
+         WHERE LOWER(name) = 'employee advances' AND archived = 0
+         LIMIT 1"
+    );
+    $accStmt->execute();
+    $account = $accStmt->fetch();
+    if (!$account) {
+        jsonResponse(['account' => null, 'people' => [], 'totals' => null]);
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT counterparty, type, SUM(amount) AS total
+         FROM transactions
+         WHERE account_id = ? AND void = 0
+         GROUP BY counterparty, type"
+    );
+    $stmt->execute([$account['id']]);
+    $rows = $stmt->fetchAll();
+
+    $byPerson = [];
+    foreach ($rows as $r) {
+        $name = trim((string) $r['counterparty']);
+        if ($name === '') continue;
+        if (!isset($byPerson[$name])) {
+            $byPerson[$name] = ['counterparty' => $name, 'given' => 0.0, 'recovered' => 0.0, 'written_off' => 0.0];
+        }
+        $amt = (float) $r['total'];
+        if ($r['type'] === 'transfer_in')  $byPerson[$name]['given']       += $amt;
+        if ($r['type'] === 'transfer_out') $byPerson[$name]['recovered']   += $amt;
+        if ($r['type'] === 'expense')      $byPerson[$name]['written_off'] += $amt;
+    }
+    foreach ($byPerson as &$p) {
+        $p['outstanding'] = round($p['given'] - $p['recovered'] - $p['written_off'], 2);
+        foreach (['given','recovered','written_off'] as $k) $p[$k] = round($p[$k], 2);
+    }
+    unset($p);
+
+    usort($byPerson, function($a, $b) {
+        if ($a['outstanding'] != $b['outstanding']) return $b['outstanding'] <=> $a['outstanding'];
+        return strcasecmp($a['counterparty'], $b['counterparty']);
+    });
+
+    $totals = ['given' => 0, 'recovered' => 0, 'written_off' => 0, 'outstanding' => 0];
+    foreach ($byPerson as $p) foreach ($totals as $k => $v) $totals[$k] += $p[$k];
+    foreach ($totals as $k => $v) $totals[$k] = round($v, 2);
+
+    jsonResponse([
+        'account'  => ['id' => $account['id'], 'name' => $account['name']],
+        'currency' => $account['currency'],
+        'people'   => array_values($byPerson),
+        'totals'   => $totals,
+    ]);
+}
+
 jsonError('Unknown report type.');

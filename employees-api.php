@@ -17,6 +17,7 @@ function loadEmployees(string $file): array {
         foreach (NUMERIC_FIELDS as $f) {
             if (!isset($e[$f])) $e[$f] = 0;
         }
+        if (!isset($e['joining_date'])) $e['joining_date'] = '';
     }
     return $data;
 }
@@ -27,9 +28,14 @@ function saveEmployees(string $file, array $employees): void {
 }
 
 function buildEmployee(array $input): array {
+    $joining = trim((string) ($input['joining_date'] ?? ''));
+    if ($joining !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $joining)) {
+        $joining = '';  // ignore malformed
+    }
     $emp = [
-        'name'        => trim($input['name']        ?? ''),
-        'designation' => trim($input['designation'] ?? ''),
+        'name'         => trim($input['name']        ?? ''),
+        'designation'  => trim($input['designation'] ?? ''),
+        'joining_date' => $joining,
     ];
     foreach (NUMERIC_FIELDS as $f) {
         $emp[$f] = max(0, (int) ($input[$f] ?? 0));

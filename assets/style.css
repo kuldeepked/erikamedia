@@ -1081,6 +1081,21 @@ input.form-control {
 .loan-settled     { background: var(--success-soft); color: var(--success); }
 .loan-written-off { background: var(--danger-soft);  color: var(--danger); }
 
+/* ── Payslip hints (pro-rate, outstanding advance) ────────── */
+.payslip-hints {
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    background: var(--accent-faint);
+    border: 1px solid var(--accent-soft);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text);
+}
+.payslip-hints .hint-prorate strong,
+.payslip-hints .hint-advance strong { color: var(--accent-hover); }
+.payslip-hints .hint-warn { color: var(--danger); font-weight: 600; }
+
 /* ── Split form ───────────────────────────────── */
 .split-rows-header {
     display: flex;

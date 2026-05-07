@@ -267,9 +267,12 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                         </div>
                         <div class="form-group">
                             <label>Pay Period *</label>
-                            <input type="month" name="pay_period" id="payslip-period" value="<?= $default_month ?>" required>
+                            <input type="month" name="pay_period" id="payslip-period" value="<?= $default_month ?>" required
+                                   onchange="applyProRatedBasic(); var m=teamMembers.find(function(x){return x.name===document.getElementById('payslip-name').value;}); if(m) showPayslipHints(m, (window.advancesByEmployee||{})[m.name]||0);">
                         </div>
                     </div>
+
+                    <div id="payslip-hints" class="payslip-hints" style="display:none;"></div>
 
                     <div style="margin: -8px 0 18px;">
                         <button type="button" class="btn-autofill" onclick="autoFillPayslip()">
@@ -475,7 +478,7 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                     <input type="hidden" id="emp-original-name" value="">
 
                     <div class="section-label">Basic Information</div>
-                    <div class="form-grid">
+                    <div class="form-grid form-grid-3">
                         <div class="form-group">
                             <label>Full Name *</label>
                             <input type="text" id="emp-name"
@@ -487,6 +490,11 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                                    list="desig-suggestions"
                                    placeholder="e.g. Reverse Recruiting Agent" autocomplete="off" required>
                             <datalist id="desig-suggestions"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>Joining Date</label>
+                            <input type="date" id="emp-joining-date"
+                                   title="Used to pro-rate first-month salary on the payslip">
                         </div>
                     </div>
 
@@ -535,11 +543,47 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                 </form>
             </div>
 
+            <!-- Give Advance form (hidden until Give Advance is clicked) -->
+            <div id="advance-form-card" class="card" style="display:none; margin-bottom: 24px;">
+                <div class="card-title" id="advance-form-title">Give Advance</div>
+                <div class="card-subtitle">
+                    Records a transfer from your business bank to <strong>Employee Advances</strong>.
+                    The amount appears as Outstanding and is auto-deducted on the next payslip's Loan field.
+                </div>
+                <div id="advance-alert" class="team-alert"></div>
+                <form id="advance-form" onsubmit="submitAdvance(event)">
+                    <input type="hidden" id="adv-employee-name" value="">
+                    <div class="form-grid form-grid-3">
+                        <div class="form-group">
+                            <label>Date *</label>
+                            <input type="date" id="adv-date" required value="<?= $default_date ?>">
+                        </div>
+                        <div class="form-group">
+                            <label>Amount (Rs.) *</label>
+                            <input type="number" id="adv-amount" required min="1" step="1" inputmode="numeric">
+                        </div>
+                        <div class="form-group">
+                            <label>From Bank *</label>
+                            <select id="adv-source"></select>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Note (optional)</label>
+                            <input type="text" id="adv-note" maxlength="500" placeholder="e.g. requested for medical emergency">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-generate">Save Advance</button>
+                    <button type="button" class="btn-cancel" onclick="closeAdvanceForm()">Cancel</button>
+                </form>
+            </div>
+
             <!-- Employee List -->
             <div class="card">
                 <div class="card-title">Team Members</div>
                 <div class="card-subtitle">
-                    Click <strong>Edit</strong> to update salary, allowance or deduction defaults.
+                    Click <strong>Edit</strong> to update salary or joining date.
+                    Click <strong>Give Advance</strong> to record an advance you've given to someone &mdash; it'll auto-deduct from their next payslip.
                 </div>
                 <div id="employee-list"></div>
             </div>
@@ -975,9 +1019,122 @@ function apiPost(url, payload) {
 // ── On page load ──────────────────────────────────────────────────────────
 (function init() {
     rebuildDropdowns();
-    renderEmployeeList();
+    loadEmployeeAdvances().then(function() {
+        renderEmployeeList();
+    });
     onActivityTypeChange();
 })();
+
+// ── Outstanding employee advances (per name) ──────────────────────────────
+window.advancesByEmployee = {};
+function loadEmployeeAdvances() {
+    return fetch('reports-api.php?type=employee_advances')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            window.advancesByEmployee = {};
+            (d.people || []).forEach(function(p) {
+                window.advancesByEmployee[p.counterparty] = p.outstanding;
+            });
+        })
+        .catch(function() { window.advancesByEmployee = {}; });
+}
+
+// ── Give Advance form ─────────────────────────────────────────────────────
+function openAdvanceForm(employeeName) {
+    var card = document.getElementById('advance-form-card');
+    document.getElementById('adv-employee-name').value = employeeName;
+    document.getElementById('advance-form-title').textContent = 'Give Advance — ' + employeeName;
+    document.getElementById('adv-amount').value = '';
+    document.getElementById('adv-note').value   = '';
+    // Populate source-bank dropdown with all bank/wallet/cash accounts.
+    fetch('accounts-api.php')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var sel = document.getElementById('adv-source');
+            sel.innerHTML = '';
+            (d.accounts || []).forEach(function(a) {
+                if (a.name.toLowerCase() === 'employee advances'
+                 || a.name.toLowerCase() === 'loans receivable') return;
+                sel.add(new Option(a.name + ' (' + a.currency + ')', a.id));
+            });
+            // Default: first account that contains "HBL" or "Erika" if present.
+            var hbl = (d.accounts || []).find(function(a) {
+                return /hbl.*erika|erika.*hbl/i.test(a.name);
+            });
+            if (hbl) sel.value = hbl.id;
+        });
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeAdvanceForm() {
+    document.getElementById('advance-form-card').style.display = 'none';
+}
+
+function submitAdvance(e) {
+    e.preventDefault();
+    var name   = document.getElementById('adv-employee-name').value;
+    var amount = parseFloat(document.getElementById('adv-amount').value);
+    var srcId  = document.getElementById('adv-source').value;
+    var date   = document.getElementById('adv-date').value;
+    var note   = document.getElementById('adv-note').value.trim();
+
+    if (!name || !srcId || !(amount > 0)) {
+        showAdvanceAlert('Pick a source bank and a positive amount.', false);
+        return;
+    }
+
+    // Find Employee Advances account by name (case-insensitive).
+    fetch('accounts-api.php')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var dst = (d.accounts || []).find(function(a) {
+                return a.name.toLowerCase() === 'employee advances';
+            });
+            if (!dst) {
+                showAdvanceAlert(
+                    'Employee Advances account is missing. Add a cash-type account named "Employee Advances" in Setup → Accounts.',
+                    false
+                );
+                return;
+            }
+            // Find Erika Media book id (the business book).
+            return fetch('books-api.php').then(function(r) { return r.json(); }).then(function(bd) {
+                var erika = (bd.books || []).find(function(b) {
+                    return /erika/i.test(b.name);
+                }) || (bd.books || [])[0];
+                if (!erika) {
+                    showAdvanceAlert('No book found. Set up Erika Media book first.', false);
+                    return;
+                }
+                return apiPost('finances-api.php', {
+                    action:         'transfer',
+                    book_id:        erika.id,
+                    date:           date,
+                    amount:         amount,
+                    src_account_id: srcId,
+                    dst_account_id: dst.id,
+                    counterparty:   name,
+                    description:    note ? ('Advance: ' + note) : 'Advance to ' + name,
+                });
+            }).then(function(r) {
+                if (!r) return;
+                if (r.error) { showAdvanceAlert(r.error, false); return; }
+                showAdvanceAlert('Advance of Rs ' + amount.toLocaleString() + ' recorded for ' + name + '.', true);
+                closeAdvanceForm();
+                loadEmployeeAdvances().then(renderEmployeeList);
+            });
+        });
+}
+
+function showAdvanceAlert(msg, ok) {
+    var el = document.getElementById('advance-alert');
+    el.className = 'team-alert ' + (ok ? 'success' : 'error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(el._t);
+    el._t = setTimeout(function() { el.style.display = 'none'; }, 4000);
+}
 
 // ── Rebuild all dropdowns from teamMembers ────────────────────────────────
 function rebuildDropdowns() {
@@ -1044,7 +1201,78 @@ function syncFromProfile(form) {
         document.getElementById('ps-penalty').value    = 0;
         document.getElementById('paid-activity-ids').value = '';
         clearAutofillStatus();
+
+        // Auto-fill the Loan deduction with this employee's outstanding advance.
+        var outstanding = (window.advancesByEmployee || {})[member.name] || 0;
+        document.getElementById('ps-loan').value = outstanding > 0 ? Math.round(outstanding) : 0;
+
+        // Pro-rate basic salary for the joining month (or zero if pay period is before joining).
+        applyProRatedBasic();
+        showPayslipHints(member, outstanding);
     }
+}
+
+// Recalculate pro-rated basic salary based on joining_date + selected pay period.
+function applyProRatedBasic() {
+    var nameEl = document.getElementById('payslip-name');
+    var member = teamMembers.find(function(m) { return m.name === nameEl.value; });
+    if (!member) return;
+
+    var period = document.getElementById('payslip-period').value;  // YYYY-MM
+    if (!period) return;
+    var monthlyBasic = parseInt(member.basic_salary || 0, 10);
+    if (!monthlyBasic) return;
+    var joining = (member.joining_date || '').trim();
+    if (!joining) {
+        document.getElementById('ps-basic').value = monthlyBasic;
+        return;
+    }
+
+    var jd = new Date(joining + 'T00:00:00');
+    var pYear  = parseInt(period.slice(0, 4), 10);
+    var pMonth = parseInt(period.slice(5, 7), 10);  // 1-12
+    var jYear  = jd.getFullYear();
+    var jMonth = jd.getMonth() + 1;
+
+    if (pYear < jYear || (pYear === jYear && pMonth < jMonth)) {
+        // Period is BEFORE joining — employee wasn't here, salary = 0.
+        document.getElementById('ps-basic').value = 0;
+        return;
+    }
+    if (pYear === jYear && pMonth === jMonth) {
+        // Joining month — pro-rate based on calendar days.
+        var totalDays  = new Date(pYear, pMonth, 0).getDate();
+        var daysWorked = totalDays - jd.getDate() + 1;
+        var prorated   = Math.round((monthlyBasic * daysWorked) / totalDays);
+        document.getElementById('ps-basic').value = prorated;
+        return;
+    }
+    // Any later month — full salary.
+    document.getElementById('ps-basic').value = monthlyBasic;
+}
+
+function showPayslipHints(member, outstandingAdvance) {
+    var holder = document.getElementById('payslip-hints');
+    if (!holder) return;
+    var notes = [];
+    var period = document.getElementById('payslip-period').value;
+    if (member.joining_date && period) {
+        var jd = new Date(member.joining_date + 'T00:00:00');
+        var pYear  = parseInt(period.slice(0, 4), 10);
+        var pMonth = parseInt(period.slice(5, 7), 10);
+        if (pYear === jd.getFullYear() && pMonth === (jd.getMonth() + 1)) {
+            var total = new Date(pYear, pMonth, 0).getDate();
+            var worked = total - jd.getDate() + 1;
+            notes.push('<span class="hint-prorate">Pro-rated for ' + worked + ' / ' + total + ' days (joined ' + member.joining_date + ').</span>');
+        } else if (pYear < jd.getFullYear() || (pYear === jd.getFullYear() && pMonth < jd.getMonth() + 1)) {
+            notes.push('<span class="hint-warn">Pay period is before ' + member.name + '\'s joining date (' + member.joining_date + ').</span>');
+        }
+    }
+    if (outstandingAdvance > 0) {
+        notes.push('<span class="hint-advance">Outstanding advance auto-deducted: <strong>Rs ' + Math.round(outstandingAdvance).toLocaleString() + '</strong> (clear the Loan field to skip).</span>');
+    }
+    holder.innerHTML = notes.join('<br>');
+    holder.style.display = notes.length ? 'block' : 'none';
 }
 
 // ── Auto-fill payslip from activity log ───────────────────────────────────
@@ -1243,23 +1471,27 @@ function renderEmployeeList() {
         return;
     }
 
+    var advBy = window.advancesByEmployee || {};
     var html = '<table class="emp-table">'
-             + '<thead><tr><th>Name</th><th>Designation</th><th>Basic</th><th>Allowance</th>'
-             + '<th>Punctuality</th><th>Deductions</th><th></th></tr></thead><tbody>';
+             + '<thead><tr><th>Name</th><th>Designation</th><th>Joined</th><th>Basic</th><th>Allowance</th>'
+             + '<th>Punctuality</th><th>Outstanding advance</th><th></th></tr></thead><tbody>';
 
     teamMembers.forEach(function(m) {
-        var deductions = (parseInt(m.provident_fund || 0, 10))
-                       + (parseInt(m.eobi             || 0, 10))
-                       + (parseInt(m.professional_tax || 0, 10));
+        var advance = advBy[m.name] || 0;
+        var advCell = advance > 0
+            ? '<strong style="color: var(--warning)">' + esc(numFmt(advance)) + '</strong>'
+            : '<span class="muted">—</span>';
         html += '<tr>'
               + '<td>' + esc(m.name) + '</td>'
               + '<td>' + esc(m.designation) + '</td>'
+              + '<td style="white-space:nowrap; color: var(--text-muted)">' + esc(m.joining_date || '—') + '</td>'
               + '<td style="text-align:right">' + esc(numFmt(m.basic_salary || 0)) + '</td>'
               + '<td style="text-align:right">' + esc(numFmt(m.allowance    || 0)) + '</td>'
               + '<td style="text-align:right">' + esc(numFmt(m.punctuality_bonus || 0)) + '</td>'
-              + '<td style="text-align:right">' + esc(numFmt(deductions)) + '</td>'
+              + '<td style="text-align:right">' + advCell + '</td>'
               + '<td style="white-space:nowrap">'
-              + '<button class="btn-edit" data-name="' + esc(m.name) + '" onclick="startEdit(this.dataset.name)">Edit</button>'
+              + '<button class="btn-edit"   data-name="' + esc(m.name) + '" onclick="startEdit(this.dataset.name)">Edit</button>'
+              + '<button class="btn-edit"   data-name="' + esc(m.name) + '" onclick="openAdvanceForm(this.dataset.name)" style="background: var(--warning-soft); color: var(--warning);">Give Advance</button>'
               + '<button class="btn-delete" data-name="' + esc(m.name) + '" onclick="deleteEmployee(this.dataset.name)">Remove</button>'
               + '</td></tr>';
     });
@@ -1276,6 +1508,7 @@ function startEdit(name) {
     document.getElementById('emp-original-name').value    = m.name;
     document.getElementById('emp-name').value             = m.name;
     document.getElementById('emp-designation').value      = m.designation;
+    document.getElementById('emp-joining-date').value     = m.joining_date       || '';
     document.getElementById('emp-basic').value            = m.basic_salary       || 0;
     document.getElementById('emp-allowance').value        = m.allowance          || 0;
     document.getElementById('emp-punctuality').value      = m.punctuality_bonus  || 0;
@@ -1307,6 +1540,7 @@ function saveEmployee(e) {
         original_name:     original,
         name:              document.getElementById('emp-name').value.trim(),
         designation:       document.getElementById('emp-designation').value.trim(),
+        joining_date:      document.getElementById('emp-joining-date').value || '',
         basic_salary:      parseInt(document.getElementById('emp-basic').value       || 0, 10),
         allowance:         parseInt(document.getElementById('emp-allowance').value   || 0, 10),
         punctuality_bonus: parseInt(document.getElementById('emp-punctuality').value || 0, 10),
