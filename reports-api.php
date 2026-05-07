@@ -279,4 +279,86 @@ if ($type === 'split_groups') {
     jsonResponse(['groups' => $stmt->fetchAll()]);
 }
 
+// ─────────────────────────────────────────────────────────────
+// loans_summary — per-person breakdown of money lent out.
+//
+// "Loans Receivable" is identified by name (case-insensitive) — any
+// account literally named that is treated as the loans book. Pivots
+// transactions on that account by counterparty:
+//   lent        = transfer_in onto Loans Receivable
+//                 (money moving FROM your bank INTO the receivable)
+//   repaid      = transfer_out from Loans Receivable
+//                 (money flowing BACK into your bank)
+//   written_off = expense from Loans Receivable
+//                 (acknowledging the loss)
+//   outstanding = lent - repaid - written_off
+// ─────────────────────────────────────────────────────────────
+if ($type === 'loans_summary') {
+    $accStmt = $pdo->prepare(
+        "SELECT id, name, currency FROM accounts
+         WHERE LOWER(name) = 'loans receivable' AND archived = 0
+         LIMIT 1"
+    );
+    $accStmt->execute();
+    $account = $accStmt->fetch();
+    if (!$account) {
+        jsonResponse(['account' => null, 'people' => [], 'totals' => null]);
+    }
+
+    $sql = "SELECT counterparty, type, SUM(amount) AS total
+            FROM transactions
+            WHERE account_id = ? AND void = 0
+            GROUP BY counterparty, type";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$account['id']]);
+    $rows = $stmt->fetchAll();
+
+    $byPerson = [];
+    foreach ($rows as $r) {
+        $name = trim((string) $r['counterparty']);
+        if (!isset($byPerson[$name])) {
+            $byPerson[$name] = [
+                'counterparty' => $name,
+                'lent' => 0.0, 'repaid' => 0.0, 'written_off' => 0.0,
+            ];
+        }
+        $amt = (float) $r['total'];
+        // Money INTO Loans Receivable = lent (transfer_in arrives here from your bank).
+        // Money OUT of Loans Receivable = repaid (back to your bank) or written_off (expense).
+        if ($r['type'] === 'transfer_in')   $byPerson[$name]['lent']        += $amt;
+        if ($r['type'] === 'transfer_out')  $byPerson[$name]['repaid']      += $amt;
+        if ($r['type'] === 'expense')       $byPerson[$name]['written_off'] += $amt;
+    }
+
+    foreach ($byPerson as &$p) {
+        $p['outstanding'] = round($p['lent'] - $p['repaid'] - $p['written_off'], 2);
+        $p['lent']        = round($p['lent'], 2);
+        $p['repaid']      = round($p['repaid'], 2);
+        $p['written_off'] = round($p['written_off'], 2);
+    }
+    unset($p);
+
+    // Sort: open loans first (by outstanding desc), then settled.
+    usort($byPerson, function($a, $b) {
+        if ($a['outstanding'] != $b['outstanding']) return $b['outstanding'] <=> $a['outstanding'];
+        return strcasecmp($a['counterparty'], $b['counterparty']);
+    });
+
+    $totals = ['lent' => 0, 'repaid' => 0, 'written_off' => 0, 'outstanding' => 0];
+    foreach ($byPerson as $p) {
+        $totals['lent']        += $p['lent'];
+        $totals['repaid']      += $p['repaid'];
+        $totals['written_off'] += $p['written_off'];
+        $totals['outstanding'] += $p['outstanding'];
+    }
+    foreach ($totals as $k => $v) $totals[$k] = round($v, 2);
+
+    jsonResponse([
+        'account'  => ['id' => $account['id'], 'name' => $account['name']],
+        'currency' => $account['currency'],
+        'people'   => array_values($byPerson),
+        'totals'   => $totals,
+    ]);
+}
+
 jsonError('Unknown report type.');

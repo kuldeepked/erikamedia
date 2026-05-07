@@ -630,11 +630,18 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                             <label>To Account *</label>
                             <select id="trn-dst" required></select>
                         </div>
-                        <div class="form-group" style="grid-column: span 2;">
+                        <div class="form-group">
+                            <label>Counterparty / Person <span class="muted">(optional)</span></label>
+                            <input type="text" id="trn-counterparty" maxlength="200" placeholder="e.g. Ahmed (for loans)">
+                        </div>
+                        <div class="form-group">
                             <label>Description</label>
                             <input type="text" id="trn-description" maxlength="500">
                         </div>
                     </div>
+                    <p class="form-hint">
+                        Tip for loans: pick <strong>Loans Receivable</strong> as the destination and put the friend's name in Counterparty. Loan repayments are the reverse.
+                    </p>
                     <button type="submit" class="btn-generate">Save Transfer</button>
                     <button type="button" class="btn-cancel" onclick="closeTransferForm()">Cancel</button>
                 </form>
@@ -740,6 +747,7 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                 <button type="button" class="fin-subtab"        data-sub="categories" onclick="showFinSub('categories')">By Category</button>
                 <button type="button" class="fin-subtab"        data-sub="accounts"  onclick="showFinSub('accounts')">Accounts</button>
                 <button type="button" class="fin-subtab"        data-sub="salaries"  onclick="showFinSub('salaries')">Salaries</button>
+                <button type="button" class="fin-subtab"        data-sub="loans"     onclick="showFinSub('loans')">Loans</button>
                 <button type="button" class="fin-subtab"        data-sub="splits"    onclick="showFinSub('splits')">Splits</button>
             </div>
 
@@ -785,6 +793,19 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                     <div class="card-title">Per-employee salary history</div>
                     <div class="card-subtitle">All-time totals paid to each employee (across linked categories).</div>
                     <div id="salaries-list"><p class="emp-empty">Loading&hellip;</p></div>
+                </div>
+            </div>
+
+            <!-- Loans sub-panel -->
+            <div id="fin-sub-loans" class="fin-subpanel">
+                <div class="card">
+                    <div class="card-title">Loans &amp; receivables</div>
+                    <div class="card-subtitle">
+                        Money you've lent to friends or family, grouped per person.
+                        Lend by transferring from your bank to <strong>Loans Receivable</strong> with the borrower's name in <strong>Counterparty</strong>.
+                        Repayments are the reverse transfer. Use <strong>Bad Debt Write-off</strong> as the category when you accept the money is not coming back.
+                    </div>
+                    <div id="loans-list"><p class="emp-empty">Loading&hellip;</p></div>
                 </div>
             </div>
 
@@ -1607,6 +1628,7 @@ function refreshCurrentSub() {
     if (currentSub === 'categories') loadCategoryTotals();
     if (currentSub === 'accounts')   loadAccountBalances();
     if (currentSub === 'salaries')   loadSalaries();
+    if (currentSub === 'loans')      loadLoans();
     if (currentSub === 'splits')     loadSplits();
 }
 
@@ -1701,6 +1723,7 @@ function openTransferForm() {
     document.getElementById('trn-date').value = todayISO();
     document.getElementById('trn-amount').value = '';
     document.getElementById('trn-description').value = '';
+    document.getElementById('trn-counterparty').value = '';
     document.getElementById('transfer-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -1717,6 +1740,7 @@ function submitTransferForm(e) {
         amount:         parseFloat(document.getElementById('trn-amount').value),
         src_account_id: document.getElementById('trn-src').value,
         dst_account_id: document.getElementById('trn-dst').value,
+        counterparty:   document.getElementById('trn-counterparty').value.trim(),
         description:    document.getElementById('trn-description').value.trim(),
     };
     if (!payload.src_account_id || !payload.dst_account_id) {
@@ -2151,6 +2175,75 @@ function renderSalaries(emps) {
     document.getElementById('salaries-list').innerHTML =
         '<table class="finance-table"><thead><tr><th>Employee</th><th>All-time paid</th><th>Last paid</th></tr></thead>' +
         '<tbody>' + rows + '</tbody></table>';
+}
+
+// ── Loans view ────────────────────────────────────────────────────────────
+// Pivots transactions on the Loans Receivable account by counterparty.
+// Per person:
+//   lent      = sum of transfer_out from your banks INTO Loans Receivable
+//   repaid    = sum of transfer_in BACK from Loans Receivable to your banks
+//   writtenOff= sum of expense from Loans Receivable (Bad Debt Write-off)
+//   outstanding = lent - repaid - writtenOff
+function loadLoans() {
+    fetch('reports-api.php?type=loans_summary')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderLoans(d);
+        })
+        .catch(function() {
+            document.getElementById('loans-list').innerHTML =
+                '<p class="emp-empty">Could not load loans.</p>';
+        });
+}
+
+function renderLoans(d) {
+    var holder = document.getElementById('loans-list');
+    if (!d || !d.account) {
+        holder.innerHTML =
+            '<p class="emp-empty">No <strong>Loans Receivable</strong> account exists yet. Create one in Setup &rarr; Accounts (any cash-type account named "Loans Receivable") and then record loans by transferring from your bank to it.</p>';
+        return;
+    }
+    var people = d.people || [];
+    var total = d.totals || { lent: 0, repaid: 0, written_off: 0, outstanding: 0 };
+    var cur = d.currency || 'PKR';
+
+    var summary =
+        '<div class="loans-summary">' +
+            '<div class="loans-stat"><span class="loans-stat-label">Total lent (lifetime)</span>' +
+                '<span class="loans-stat-value">' + fmtMoney(total.lent, cur) + '</span></div>' +
+            '<div class="loans-stat"><span class="loans-stat-label">Repaid</span>' +
+                '<span class="loans-stat-value is-good">' + fmtMoney(total.repaid, cur) + '</span></div>' +
+            '<div class="loans-stat"><span class="loans-stat-label">Written off</span>' +
+                '<span class="loans-stat-value is-bad">' + fmtMoney(total.written_off, cur) + '</span></div>' +
+            '<div class="loans-stat is-headline"><span class="loans-stat-label">Outstanding</span>' +
+                '<span class="loans-stat-value">' + fmtMoney(total.outstanding, cur) + '</span></div>' +
+        '</div>';
+
+    var rows = '';
+    if (!people.length) {
+        rows = '<p class="emp-empty">No loans on record yet.</p>';
+    } else {
+        rows = '<table class="finance-table"><thead><tr>' +
+            '<th>Person</th><th class="num">Lent</th><th class="num">Repaid</th>' +
+            '<th class="num">Written off</th><th class="num">Outstanding</th><th>Status</th>' +
+            '</tr></thead><tbody>' +
+            people.map(function(p) {
+                var status = p.outstanding > 0 ? 'open'
+                           : p.written_off > 0 && p.repaid + p.written_off >= p.lent - 0.01 ? 'written-off'
+                           : 'settled';
+                var statusBadge = '<span class="loan-status loan-' + status + '">' + status.replace('-', ' ') + '</span>';
+                return '<tr>' +
+                    '<td><strong>' + escFin(p.counterparty || '(no name)') + '</strong></td>' +
+                    '<td class="num">' + fmtMoney(p.lent, cur) + '</td>' +
+                    '<td class="num">' + fmtMoney(p.repaid, cur) + '</td>' +
+                    '<td class="num">' + fmtMoney(p.written_off, cur) + '</td>' +
+                    '<td class="num"><strong>' + fmtMoney(p.outstanding, cur) + '</strong></td>' +
+                    '<td>' + statusBadge + '</td>' +
+                '</tr>';
+            }).join('') +
+            '</tbody></table>';
+    }
+    holder.innerHTML = summary + rows;
 }
 
 // ── Splits view ───────────────────────────────────────────────────────────

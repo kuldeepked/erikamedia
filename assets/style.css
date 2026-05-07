@@ -1021,6 +1021,66 @@ input.form-control {
     line-height: 1.5;
 }
 
+/* Inline help text under form fields */
+.form-hint {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: var(--info-soft);
+    border: 1px solid #cddff0;
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    color: var(--info);
+    line-height: 1.5;
+}
+.form-hint strong { font-weight: 700; }
+
+/* ── Loans subtab ───────────────────────────────── */
+.loans-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.loans-stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.loans-stat.is-headline { border-color: var(--accent); background: var(--accent-faint); }
+.loans-stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.loans-stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+}
+.loans-stat.is-headline .loans-stat-value { color: var(--accent-hover); }
+.loans-stat-value.is-good { color: var(--success); }
+.loans-stat-value.is-bad  { color: var(--danger); }
+
+.loan-status {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.loan-open        { background: var(--warning-soft); color: var(--warning); }
+.loan-settled     { background: var(--success-soft); color: var(--success); }
+.loan-written-off { background: var(--danger-soft);  color: var(--danger); }
+
 /* ── Split form ───────────────────────────────── */
 .split-rows-header {
     display: flex;

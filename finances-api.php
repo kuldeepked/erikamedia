@@ -193,12 +193,13 @@ if ($action === 'add') {
 // transfer — within-book paired transfer (transfer_out + transfer_in)
 // ─────────────────────────────────────────────────────────────
 if ($action === 'transfer') {
-    $date        = validateDate(trim((string) ($input['date'] ?? date('Y-m-d'))));
-    $bookId      = trim((string) ($input['book_id'] ?? ''));
-    $amount      = (float) ($input['amount'] ?? 0);
-    $srcId       = trim((string) ($input['src_account_id'] ?? ''));
-    $dstId       = trim((string) ($input['dst_account_id'] ?? ''));
-    $description = trim((string) ($input['description'] ?? ''));
+    $date         = validateDate(trim((string) ($input['date'] ?? date('Y-m-d'))));
+    $bookId       = trim((string) ($input['book_id'] ?? ''));
+    $amount       = (float) ($input['amount'] ?? 0);
+    $srcId        = trim((string) ($input['src_account_id'] ?? ''));
+    $dstId        = trim((string) ($input['dst_account_id'] ?? ''));
+    $counterparty = trim((string) ($input['counterparty'] ?? ''));
+    $description  = trim((string) ($input['description'] ?? ''));
 
     if ($bookId === '')         jsonError('book_id is required.');
     if ($srcId === $dstId)      jsonError('Source and destination accounts must differ.');
@@ -211,6 +212,12 @@ if ($action === 'transfer') {
         jsonError('Cross-currency transfers are not supported. Use Add Income/Expense on each side instead.');
     }
 
+    // If counterparty was given (e.g. "Ahmed" for a loan), it goes on
+    // BOTH legs so per-person totals roll up correctly. Otherwise fall
+    // back to the opposite account name on each leg.
+    $cpOut = $counterparty !== '' ? $counterparty : $dst['name'];
+    $cpIn  = $counterparty !== '' ? $counterparty : $src['name'];
+
     $linkId = newId('link');
     $pdo->beginTransaction();
     try {
@@ -218,14 +225,14 @@ if ($action === 'transfer') {
             'date' => $date, 'book_id' => $bookId, 'type' => 'transfer_out', 'amount' => round($amount, 2),
             'currency' => $src['currency'], 'account_id' => $srcId,
             'description' => mb_substr($description, 0, 500),
-            'counterparty' => $dst['name'],
+            'counterparty' => mb_substr($cpOut, 0, 200),
             'linked_tx_id' => $linkId,
         ]);
         $in = insertTx($pdo, [
             'date' => $date, 'book_id' => $bookId, 'type' => 'transfer_in', 'amount' => round($amount, 2),
             'currency' => $dst['currency'], 'account_id' => $dstId,
             'description' => mb_substr($description, 0, 500),
-            'counterparty' => $src['name'],
+            'counterparty' => mb_substr($cpIn, 0, 200),
             'linked_tx_id' => $linkId,
         ]);
         $pdo->commit();
