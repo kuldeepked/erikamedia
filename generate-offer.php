@@ -293,6 +293,8 @@ unset($_hf, $_hist);
             <p><h4>Early Confirmation.</h4> Notwithstanding the above, the Company reserves the right, at its sole discretion, to shorten the probation period&mdash;potentially to as little as one (1) month&mdash;if your performance is deemed exceptional. Any such early confirmation will be communicated to you in writing.</p>
 
             <p><h4>Transition to Permanent Employment.</h4> Upon successful completion of the probation period, you will be confirmed as a permanent employee of the Company.</p>
+
+            <p><h4>Post-Probation Salary Review.</h4> Upon successful completion of the probation period, your basic salary will be reviewed and may be increased by between ten percent (10%) and twenty percent (20%) based on your overall performance during the probation period. The exact amount of any such increase is at the sole discretion of the Company.</p>
         </div>
     </div>
 </div>
@@ -431,6 +433,8 @@ unset($_hf, $_hist);
             <p><h4>Early Confirmation.</h4> Notwithstanding the above, the Company reserves the right, at its sole discretion, to shorten the probation period&mdash;potentially to as little as one (1) month&mdash;if your performance is deemed exceptional. Any such early confirmation will be communicated to you in writing.</p>
 
             <p><h4>Transition to Permanent Employment.</h4> Upon successful completion of the probation period, you will be confirmed as a permanent employee of the Company.</p>
+
+            <p><h4>Post-Probation Salary Review.</h4> Upon successful completion of the probation period, your basic salary will be reviewed and may be increased by between ten percent (10%) and twenty percent (20%) based on your overall performance during the probation period. The exact amount of any such increase is at the sole discretion of the Company.</p>
         </div>
     </div>
 </div>
