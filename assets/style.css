@@ -1427,3 +1427,99 @@ input.form-control {
     .account-grid { grid-template-columns: 1fr; }
     .setup-row-fields { grid-template-columns: 1fr 1fr; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Dashboard — overview screen (KPI tiles, cash-flow chart,
+   activity feed, top performer). Built on the shared tokens.
+───────────────────────────────────────────────────────────── */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+.kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    box-shadow: var(--shadow-sm);
+}
+.kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 600; }
+.kpi-ic {
+    width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent-faint); color: var(--accent-hover); flex-shrink: 0;
+}
+.kpi-value { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin-top: 12px; color: var(--text); line-height: 1.1; }
+.kpi-delta { font-size: 12px; font-weight: 600; margin-top: 5px; }
+.kpi-delta.up   { color: var(--success); }
+.kpi-delta.down { color: var(--danger); }
+.kpi-sub { font-size: 12px; color: var(--text-faint); margin-top: 5px; }
+
+.dash-cols { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; align-items: start; }
+
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.section-head .card-title { margin-bottom: 0; }
+
+/* Dependency-free CSS bar chart */
+.chart-plot {
+    display: flex; align-items: flex-end; gap: 16px; height: 180px;
+    padding: 0 4px; border-bottom: 1px solid var(--border);
+}
+.bar-group { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 6px; height: 100%; }
+.bar { width: 24px; border-radius: 4px 4px 0 0; min-height: 2px; transition: opacity 0.15s; }
+.bar:hover { opacity: 0.82; }
+.bar.income  { background: var(--success); }
+.bar.expense { background: var(--danger); }
+.bar.net     { background: var(--accent); }
+.chart-x { display: flex; gap: 16px; margin-top: 8px; padding: 0 4px; }
+.chart-x span { flex: 1; text-align: center; font-size: 11px; color: var(--text-faint); }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+/* Recent-activity feed */
+.act-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.act-row:last-child { border-bottom: none; }
+.act-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.act-main { flex: 1; font-size: 13px; min-width: 0; }
+.act-who { font-weight: 600; }
+.act-meta { font-size: 11.5px; color: var(--text-faint); }
+.act-amt { font-weight: 600; font-size: 13px; white-space: nowrap; }
+.act-amt.pos { color: var(--success); }
+.act-amt.neg { color: var(--danger); }
+
+.quick-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Top-performer card */
+.perf-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent-hover);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; flex-shrink: 0;
+}
+.perf-stat { flex: 1; text-align: center; padding: 10px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.perf-stat-v { font-size: 20px; font-weight: 700; color: var(--text); }
+.perf-stat-l { font-size: 11px; color: var(--text-muted); }
+
+@media (max-width: 920px) {
+    .dash-cols { grid-template-columns: 1fr; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Reports — horizontal category bars
+───────────────────────────────────────────────────────────── */
+.hbar { display: grid; grid-template-columns: 140px 1fr 116px; align-items: center; gap: 12px; margin-bottom: 11px; font-size: 13px; }
+.hbar-name { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { background: var(--surface-3); border-radius: 999px; height: 10px; overflow: hidden; }
+.hbar-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+.hbar-amt { text-align: right; font-weight: 600; color: var(--text); white-space: nowrap; }
+
+@media (max-width: 720px) {
+    .hbar { grid-template-columns: 100px 1fr 96px; gap: 8px; font-size: 12px; }
+}
+
+/* Payroll table helpers */
+.finance-table .neg { color: var(--danger); }
+.finance-table tr.tot-row td { font-weight: 700; background: var(--surface-2); border-top: 2px solid var(--border-strong); }

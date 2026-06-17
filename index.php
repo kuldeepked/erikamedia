@@ -32,9 +32,20 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
     </div>
 
     <nav>
-        <div class="nav-label">Documents</div>
+        <div class="nav-label">Main</div>
 
-        <a class="nav-item active" id="nav-offer" href="#"
+        <a class="nav-item active" id="nav-dashboard" href="#"
+           onclick="showTab('dashboard', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            Dashboard
+        </a>
+
+        <div class="nav-label" style="margin-top: 12px;">Documents</div>
+
+        <a class="nav-item" id="nav-offer" href="#"
            onclick="showTab('offer', this); return false;">
             <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -93,6 +104,24 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             Manage Team
         </a>
 
+        <a class="nav-item" href="attendance-admin.php">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M12 7v5l3 2"/>
+            </svg>
+            Attendance
+        </a>
+
+        <a class="nav-item" id="nav-payroll" href="#"
+           onclick="showTab('payroll', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                <line x1="2" y1="10" x2="22" y2="10"/>
+                <circle cx="17" cy="15" r="1.5"/>
+            </svg>
+            Payroll
+        </a>
+
         <a class="nav-item" id="nav-finances" href="#"
            onclick="showTab('finances', this); return false;">
             <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -100,6 +129,16 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
             </svg>
             Finances
+        </a>
+
+        <a class="nav-item" id="nav-reports" href="#"
+           onclick="showTab('reports', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            Reports
         </a>
 
         <a class="nav-item" id="nav-fin-setup" href="#"
@@ -151,7 +190,7 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
 ═══════════════════════════════════════════ -->
 <div class="main">
     <div class="topbar">
-        <h1 id="page-title">Generate Offer Letter</h1>
+        <h1 id="page-title">Dashboard</h1>
         <div style="display: flex; align-items: center; gap: 16px;">
             <span class="topbar-user">Signed in as <strong><?= htmlspecialchars($_SESSION['admin_user']) ?></strong></span>
             <span class="topbar-date"><?= $today ?></span>
@@ -161,9 +200,16 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
     <div class="content-area">
 
         <!-- ─────────────────────────────────────
+             DASHBOARD — overview
+        ───────────────────────────────────── -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div id="dashboard-body"><p class="emp-empty">Loading&hellip;</p></div>
+        </div>
+
+        <!-- ─────────────────────────────────────
              OFFER LETTER FORM
         ───────────────────────────────────── -->
-        <div id="tab-offer" class="tab-content active">
+        <div id="tab-offer" class="tab-content">
             <div class="card">
                 <div class="card-title">Offer Letter Generator</div>
                 <div class="card-subtitle">
@@ -997,6 +1043,63 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
             </div>
         </div>
 
+        <!-- ─────────────────────────────────────
+             PAYROLL RUN
+        ───────────────────────────────────── -->
+        <div id="tab-payroll" class="tab-content">
+            <div class="card">
+                <div class="section-head">
+                    <div>
+                        <div class="card-title">Payroll Run</div>
+                        <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Monthly payslip preview for every employee — generated through the same engine as the Payslip tab.</div>
+                    </div>
+                    <div class="finance-controls" style="margin-bottom:0;">
+                        <input type="month" id="payroll-month" value="<?= date('Y-m') ?>" onchange="loadPayroll()">
+                        <button class="btn-finance-secondary" onclick="loadPayroll()">&#8635; Refresh</button>
+                        <button class="btn-finance-primary" id="payroll-genall" onclick="generateAllPending()">Generate all pending</button>
+                        <button class="btn-finance-secondary" onclick="openPostSalaries()">Post salaries to Finances</button>
+                    </div>
+                </div>
+                <div id="payroll-body"><p class="emp-empty">Loading&hellip;</p></div>
+            </div>
+
+            <div class="card" id="payroll-post-card" style="display:none; margin-top:18px;">
+                <div class="card-title">Post salaries to Finances — <span id="pp-month"></span></div>
+                <div class="card-subtitle" style="margin-bottom:16px; padding-bottom:14px;">Records each employee's <strong>net pay</strong> as an expense in their linked salary category (Erika book). Employees already posted for this month are skipped automatically.</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Pay salaries from *</label>
+                        <select id="pp-account"><option value="">— Select account —</option></select>
+                    </div>
+                </div>
+                <div id="pp-result" class="form-hint" style="display:none; margin-top:14px;"></div>
+                <div>
+                    <button class="btn-finance-primary" style="margin-top:18px;" onclick="confirmPostSalaries()">Post salaries</button>
+                    <button class="btn-cancel" onclick="closePostSalaries()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────
+             REPORTS & ANALYTICS
+        ───────────────────────────────────── -->
+        <div id="tab-reports" class="tab-content">
+            <div class="card">
+                <div class="section-head">
+                    <div>
+                        <div class="card-title">Reports &amp; Analytics</div>
+                        <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Income, expenses, and team performance over time.</div>
+                    </div>
+                    <div class="finance-controls" style="margin-bottom:0;">
+                        <input type="month" id="report-month" value="<?= date('Y-m') ?>" onchange="loadReports()">
+                        <a href="#" class="finance-export" onclick="exportReportCsv(); return false;">&#8681; Export CSV</a>
+                    </div>
+                </div>
+                <div id="reports-summary"></div>
+            </div>
+            <div id="reports-charts"></div>
+        </div>
+
     </div><!-- /content-area -->
 </div><!-- /main -->
 
@@ -1016,8 +1119,425 @@ function apiPost(url, payload) {
     }).then(function (r) { return r.json(); });
 }
 
+// ── Dashboard (overview) ──────────────────────────────────────────────────
+function loadDashboard() {
+    var body = document.getElementById('dashboard-body');
+    if (!body) return;
+    fetch('dashboard-api.php')
+        .then(function (r) { return r.json(); })
+        .then(function (d) { renderDashboard(d); })
+        .catch(function () {
+            var b = document.getElementById('dashboard-body');
+            if (b) b.innerHTML = '<p class="emp-empty">Could not load dashboard.</p>';
+        });
+}
+
+function rsFmt(n) { return 'Rs. ' + numFmt(Math.round(n || 0)); }
+
+function dashDelta(cur, prev) {
+    cur = cur || 0; prev = prev || 0;
+    if (prev === 0) {
+        if (cur === 0) return '<div class="kpi-sub">No prior-month data</div>';
+        return '<div class="kpi-delta up">▲ new this month</div>';
+    }
+    var pct = ((cur - prev) / Math.abs(prev)) * 100;
+    var up = pct >= 0;
+    return '<div class="kpi-delta ' + (up ? 'up' : 'down') + '">'
+         + (up ? '▲' : '▼') + ' ' + Math.abs(pct).toFixed(1) + '% vs last month</div>';
+}
+
+function renderDashboard(d) {
+    var k = d.kpis || {};
+    var cf = d.cashflow || [];
+
+    var html = '<div class="kpi-grid">';
+    html += dashKpi('Net — this month', rsFmt(k.net), dashDelta(k.net, k.net_prev), 'money');
+    html += dashKpi('Income', rsFmt(k.income), dashDelta(k.income, k.income_prev), '');
+    html += dashKpi('Expenses', rsFmt(k.expense), dashDelta(k.expense, k.expense_prev), '');
+    html += dashKpi('Interviews', numFmt(k.interviews), '<div class="kpi-sub">' + numFmt(k.placements) + ' placements this month</div>', '');
+    html += dashKpi('Headcount', numFmt(k.headcount), '<div class="kpi-sub">active employees</div>', 'people');
+    html += dashKpi('Outstanding advances', rsFmt(k.advances_outstanding), '<div class="kpi-sub">recoverable from staff</div>', '');
+    html += dashKpi('Outstanding loans', rsFmt(k.loans_outstanding), '<div class="kpi-sub">loans receivable</div>', '');
+    html += dashKpi('Base payroll', rsFmt(k.payroll_base), '<div class="kpi-sub">' + numFmt(k.headcount) + ' employees</div>', 'pay');
+    html += '</div>';
+
+    html += '<div class="dash-cols"><div class="card">';
+    html += '<div class="section-head"><div class="card-title">Cash flow — last 6 months</div>'
+          + '<div class="legend"><span><i style="background:var(--success)"></i>Income</span>'
+          + '<span><i style="background:var(--danger)"></i>Expense</span></div></div>';
+    html += dashChart(cf);
+    html += '<div class="section-head" style="margin-top:28px;"><div class="card-title">Recent activity</div>'
+          + '<button class="btn-link" onclick="document.getElementById(\'nav-activity\').click()">View all →</button></div>';
+    html += dashActivity(d.recent_activity || []);
+    html += '</div><div>';
+    html += dashTopPerformer(d.top_performer);
+    html += '<div class="card" style="margin-top:18px;"><div class="card-title" style="margin-bottom:14px;">Quick actions</div>'
+          + '<div class="quick-actions">'
+          + '<button class="btn-generate" style="margin-top:0;" onclick="document.getElementById(\'nav-offer\').click()">＋ Offer letter</button>'
+          + '<button class="btn-autofill" onclick="document.getElementById(\'nav-payslip\').click()">＋ Payslip</button>'
+          + '<button class="btn-tool" onclick="document.getElementById(\'nav-activity\').click()">＋ Log activity</button>'
+          + '</div></div></div></div>';
+
+    var b = document.getElementById('dashboard-body');
+    if (b) b.innerHTML = html;
+}
+
+function dashKpi(label, value, sub, icon) {
+    var icons = {
+        money:  '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+        people: '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>',
+        pay:    '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'
+    };
+    var ic = (icon && icons[icon]) ? '<span class="kpi-ic">' + icons[icon] + '</span>' : '';
+    return '<div class="kpi-card"><div class="kpi-top"><span class="kpi-label">' + esc(label) + '</span>' + ic + '</div>'
+         + '<div class="kpi-value">' + value + '</div>' + (sub || '') + '</div>';
+}
+
+function dashChart(cf) {
+    if (!cf.length) return '<p class="emp-empty">No finance data yet.</p>';
+    var max = 1;
+    cf.forEach(function (m) { max = Math.max(max, m.income || 0, m.expense || 0); });
+    var plot = '<div class="chart-plot">';
+    var xaxis = '<div class="chart-x">';
+    cf.forEach(function (m) {
+        var ih = Math.round(((m.income || 0) / max) * 100);
+        var eh = Math.round(((m.expense || 0) / max) * 100);
+        plot += '<div class="bar-group">'
+              + '<div class="bar income" style="height:' + ih + '%" title="Income: ' + rsFmt(m.income) + '"></div>'
+              + '<div class="bar expense" style="height:' + eh + '%" title="Expense: ' + rsFmt(m.expense) + '"></div></div>';
+        xaxis += '<span>' + esc(m.label || '') + '</span>';
+    });
+    return plot + '</div>' + xaxis + '</div>';
+}
+
+function dashActivity(items) {
+    if (!items.length) return '<p class="emp-empty">No recent activity.</p>';
+    var dotColor = { interview: 'var(--info)', placement: 'var(--success)', bonus: 'var(--warning)', penalty: 'var(--danger)' };
+    var label    = { interview: 'interview secured', placement: 'client placement', bonus: 'bonus', penalty: 'penalty' };
+    var html = '';
+    items.forEach(function (a) {
+        var neg = a.type === 'penalty';
+        html += '<div class="act-row"><span class="act-dot" style="background:' + (dotColor[a.type] || 'var(--text-faint)') + '"></span>'
+              + '<div class="act-main"><span class="act-who">' + esc(a.employee) + '</span> — ' + esc(label[a.type] || a.type)
+              + '<div class="act-meta">' + esc(a.date) + '</div></div>'
+              + '<span class="act-amt ' + (neg ? 'neg' : 'pos') + '">' + (neg ? '−' : '+') + rsFmt(a.amount) + '</span></div>';
+    });
+    return html;
+}
+
+function dashTopPerformer(t) {
+    if (!t || !t.name) {
+        return '<div class="card"><div class="card-title" style="margin-bottom:6px;">Top performer</div>'
+             + '<p class="emp-empty">No interviews logged this month yet.</p></div>';
+    }
+    var initials = t.name.split(' ').map(function (w) { return w.charAt(0); }).join('').substring(0, 2).toUpperCase();
+    return '<div class="card"><div class="card-title" style="margin-bottom:14px;">Top performer — this month</div>'
+         + '<div style="display:flex; align-items:center; gap:14px;">'
+         + '<div class="perf-avatar">' + esc(initials) + '</div>'
+         + '<div><div style="font-weight:700; font-size:15px;">' + esc(t.name) + '</div>'
+         + '<div style="font-size:12px; color:var(--text-faint);">' + esc(t.designation || '') + '</div></div></div>'
+         + '<div style="display:flex; gap:10px; margin-top:16px;">'
+         + '<div class="perf-stat"><div class="perf-stat-v">' + numFmt(t.interviews) + '</div><div class="perf-stat-l">Interviews</div></div>'
+         + '<div class="perf-stat"><div class="perf-stat-v">' + numFmt(t.placements) + '</div><div class="perf-stat-l">Placements</div></div>'
+         + '</div></div>';
+}
+
+// ── Reports & Analytics ───────────────────────────────────────────────────
+var _reportData = null;
+
+function loadReports() {
+    var sum    = document.getElementById('reports-summary');
+    var charts = document.getElementById('reports-charts');
+    if (!sum || !charts) return;
+    sum.innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
+    charts.innerHTML = '';
+    var month = document.getElementById('report-month').value || '';
+    fetch('reports-screen-api.php' + (month ? '?month=' + encodeURIComponent(month) : ''))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { renderReports(d); })
+        .catch(function () { sum.innerHTML = '<p class="emp-empty">Could not load reports.</p>'; });
+}
+
+function renderReports(d) {
+    _reportData = d;
+    var s = d.summary || {};
+    var neg = (s.net || 0) < 0;
+    document.getElementById('reports-summary').innerHTML =
+        '<div class="finance-summary" style="margin-top:18px;">'
+      + '<div class="fin-summary-card fin-in"><div class="fin-label">Income (12 mo)</div><div class="fin-value">' + rsFmt(s.income) + '</div></div>'
+      + '<div class="fin-summary-card fin-out"><div class="fin-label">Expense (12 mo)</div><div class="fin-value">' + rsFmt(s.expense) + '</div></div>'
+      + '<div class="fin-summary-card fin-net' + (neg ? ' fin-net-negative' : '') + '"><div class="fin-label">Net (12 mo)</div><div class="fin-value">' + rsFmt(s.net) + '</div></div>'
+      + '</div>';
+
+    var html = '<div class="card" style="margin-top:18px;">'
+             + '<div class="section-head"><div class="card-title">Net profit — last 12 months</div>'
+             + '<div class="legend"><span><i style="background:var(--accent)"></i>Net (income − expense)</span></div></div>'
+             + reportNetChart(d.series || []) + '</div>';
+
+    html += '<div class="dash-cols" style="margin-top:18px;">'
+          + '<div class="card"><div class="card-title" style="margin-bottom:18px;">Expenses by category — ' + esc(monthLabel(d.month)) + '</div>'
+          + reportCategories(d.categories || []) + '</div>'
+          + '<div class="card"><div class="card-title" style="margin-bottom:18px;">Performance by employee — ' + esc(monthLabel(d.month)) + '</div>'
+          + reportPeople(d.people || []) + '</div></div>';
+
+    document.getElementById('reports-charts').innerHTML = html;
+}
+
+function monthLabel(m) {
+    if (!m) return '';
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var parts = String(m).split('-');
+    return (names[parseInt(parts[1], 10) - 1] || '') + ' ' + parts[0];
+}
+
+function reportNetChart(series) {
+    if (!series.length) return '<p class="emp-empty">No finance data yet.</p>';
+    var max = 1;
+    series.forEach(function (m) { max = Math.max(max, Math.abs(m.net || 0)); });
+    var plot = '<div class="chart-plot">';
+    var xaxis = '<div class="chart-x">';
+    series.forEach(function (m) {
+        var h = Math.round((Math.abs(m.net || 0) / max) * 100);
+        var neg = (m.net || 0) < 0;
+        plot += '<div class="bar-group"><div class="bar ' + (neg ? 'expense' : 'net') + '" style="height:' + h + '%" title="Net: ' + rsFmt(m.net) + '"></div></div>';
+        xaxis += '<span>' + esc(m.label || '') + '</span>';
+    });
+    return plot + '</div>' + xaxis + '</div>';
+}
+
+function reportCategories(cats) {
+    if (!cats.length) return '<p class="emp-empty">No expenses recorded for this month.</p>';
+    var max = 1;
+    cats.forEach(function (c) { max = Math.max(max, c.total || 0); });
+    var html = '';
+    cats.forEach(function (c) {
+        var w = Math.round(((c.total || 0) / max) * 100);
+        html += '<div class="hbar"><span class="hbar-name">' + esc(c.name) + '</span>'
+              + '<div class="hbar-track"><div class="hbar-fill" style="width:' + w + '%; background:var(--danger);"></div></div>'
+              + '<span class="hbar-amt">' + rsFmt(c.total) + '</span></div>';
+    });
+    return html;
+}
+
+function reportPeople(people) {
+    if (!people.length) return '<p class="emp-empty">No activity logged for this month.</p>';
+    var html = '<table class="emp-table"><thead><tr><th>Employee</th>'
+             + '<th style="text-align:right">Interviews</th><th style="text-align:right">Placed</th>'
+             + '<th style="text-align:right">Earned</th></tr></thead><tbody>';
+    people.forEach(function (p) {
+        html += '<tr><td>' + esc(p.employee) + '</td>'
+              + '<td style="text-align:right">' + numFmt(p.interviews) + '</td>'
+              + '<td style="text-align:right">' + numFmt(p.placements) + '</td>'
+              + '<td style="text-align:right">' + rsFmt(p.commission) + '</td></tr>';
+    });
+    return html + '</tbody></table>';
+}
+
+function exportReportCsv() {
+    if (!_reportData) return;
+    var rows = [['Erika Media — Report', _reportData.month], []];
+    rows.push(['Monthly series'], ['Month', 'Income', 'Expense', 'Net']);
+    (_reportData.series || []).forEach(function (m) { rows.push([m.month, m.income, m.expense, m.net]); });
+    rows.push([], ['Expenses by category — ' + _reportData.month], ['Category', 'Amount']);
+    (_reportData.categories || []).forEach(function (c) { rows.push([c.name, c.total]); });
+    rows.push([], ['Performance by employee — ' + _reportData.month], ['Employee', 'Interviews', 'Placements', 'Earned']);
+    (_reportData.people || []).forEach(function (p) { rows.push([p.employee, p.interviews, p.placements, p.commission]); });
+    var csv = rows.map(function (r) {
+        return r.map(function (c) {
+            c = (c === undefined || c === null) ? '' : String(c);
+            return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c;
+        }).join(',');
+    }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'erika-report-' + (_reportData.month || 'export') + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+// ── Payroll Run ───────────────────────────────────────────────────────────
+var _payrollData = null, _payrollRows = [];
+
+function loadPayroll() {
+    var body = document.getElementById('payroll-body');
+    if (!body) return;
+    body.innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
+    var month = document.getElementById('payroll-month').value || '';
+    fetch('payroll-api.php' + (month ? '?month=' + encodeURIComponent(month) : ''))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { renderPayroll(d); })
+        .catch(function () { body.innerHTML = '<p class="emp-empty">Could not load payroll.</p>'; });
+}
+
+function renderPayroll(d) {
+    _payrollData = d;
+    _payrollRows = d.rows || [];
+    var t = d.totals || {};
+
+    var html = '<div class="info-tip" style="margin-bottom:18px;"><span>&#9432;</span><span>'
+        + 'Net = Basic + Allowance + Commission + Bonus − Advance − PF − EOBI − Tax − Penalty. '
+        + 'Commission &amp; penalty come from unpaid Activity Log entries for ' + esc(monthLabel(d.month))
+        + ' (including attendance late-penalties). Generating a payslip records it in History and marks those entries paid.'
+        + '</span></div>';
+
+    html += '<div class="finance-table-wrap"><table class="finance-table"><thead><tr>'
+        + '<th>Employee</th><th class="num">Basic</th><th class="num">Allow.</th><th class="num">Comm.</th>'
+        + '<th class="num">Bonus</th><th class="num">Advance</th><th class="num">PF</th><th class="num">EOBI</th>'
+        + '<th class="num">Tax</th><th class="num">Penalty</th><th class="num">Net pay</th><th>Status</th><th></th>'
+        + '</tr></thead><tbody>';
+
+    _payrollRows.forEach(function (r, i) {
+        html += '<tr>'
+            + '<td>' + esc(r.employee) + '<span class="fin-meta">' + esc(r.designation) + '</span></td>'
+            + '<td class="num">' + numFmt(r.basic) + '</td>'
+            + '<td class="num">' + numFmt(r.allowance) + '</td>'
+            + '<td class="num">' + numFmt(r.commission) + '</td>'
+            + '<td class="num">' + numFmt(r.bonus) + '</td>'
+            + '<td class="num">' + (r.loan ? '<span class="neg">−' + numFmt(r.loan) + '</span>' : '—') + '</td>'
+            + '<td class="num">' + (r.provident_fund ? numFmt(r.provident_fund) : '—') + '</td>'
+            + '<td class="num">' + (r.eobi ? numFmt(r.eobi) : '—') + '</td>'
+            + '<td class="num">' + (r.professional_tax ? numFmt(r.professional_tax) : '—') + '</td>'
+            + '<td class="num">' + (r.penalty ? '<span class="neg">−' + numFmt(r.penalty) + '</span>' : '—') + '</td>'
+            + '<td class="num"><strong>Rs. ' + numFmt(r.net) + '</strong></td>'
+            + '<td>' + (r.generated ? '<span class="paid-badge">Generated</span>' : '<span class="unpaid-badge">Pending</span>') + '</td>'
+            + '<td class="num"><button class="btn-edit" onclick="generatePayslipFor(' + i + ')">' + (r.generated ? 'Re-gen' : 'Payslip') + '</button></td>'
+            + '</tr>';
+    });
+
+    html += '<tr class="tot-row"><td>Total — ' + _payrollRows.length + ' employees</td>'
+        + '<td class="num">' + numFmt(t.basic) + '</td><td class="num">' + numFmt(t.allowance) + '</td>'
+        + '<td class="num">' + numFmt(t.commission) + '</td><td class="num">' + numFmt(t.bonus) + '</td>'
+        + '<td class="num">' + (t.loan ? '−' + numFmt(t.loan) : '—') + '</td>'
+        + '<td class="num">' + numFmt(t.provident_fund) + '</td><td class="num">' + numFmt(t.eobi) + '</td>'
+        + '<td class="num">' + numFmt(t.professional_tax) + '</td>'
+        + '<td class="num">' + (t.penalty ? '−' + numFmt(t.penalty) : '—') + '</td>'
+        + '<td class="num">Rs. ' + numFmt(t.net) + '</td><td colspan="2"></td></tr>';
+
+    html += '</tbody></table></div>';
+    document.getElementById('payroll-body').innerHTML = html;
+
+    var btn = document.getElementById('payroll-genall');
+    if (btn) {
+        btn.textContent = d.pending_count > 0 ? ('Generate all pending (' + d.pending_count + ')') : 'All generated ✓';
+        btn.disabled = d.pending_count === 0;
+    }
+}
+
+function buildPayslipForm(r, target) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'generate-payslip.php';
+    form.target = target;
+    form.style.display = 'none';
+    var fields = {
+        _csrf: CSRF,
+        employee_name: r.employee,
+        designation: r.designation,
+        pay_period: _payrollData.month,
+        basic_salary: r.basic,
+        allowance: r.allowance,
+        commission: r.commission,
+        performer_bonus: r.bonus,
+        provident_fund: r.provident_fund,
+        eobi: r.eobi,
+        loan: r.loan,
+        professional_tax: r.professional_tax,
+        absent_late: r.absent_late,
+        penalty: r.penalty,
+        paid_activity_ids: (r.activity_ids || []).join(',')
+    };
+    Object.keys(fields).forEach(function (k) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = k; inp.value = fields[k];
+        form.appendChild(inp);
+    });
+    return form;
+}
+
+function generatePayslipFor(idx) {
+    var r = _payrollRows[idx];
+    if (!r) return;
+    var form = buildPayslipForm(r, '_blank');
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(function () { try { form.remove(); } catch (e) {} }, 1500);
+    r.generated = true;
+    renderPayroll(_payrollData);
+}
+
+function generateAllPending() {
+    var pending = _payrollRows.filter(function (r) { return !r.generated; });
+    if (!pending.length) { alert('All payslips for this month are already generated.'); return; }
+    if (!confirm('Generate ' + pending.length + ' payslip(s) for ' + _payrollData.month
+        + '?\n\nEach is recorded in History, marks its Activity Log entries paid, and (if an advance is outstanding) records the advance recovery.')) return;
+
+    var iframe = document.getElementById('payroll-sink');
+    if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.name = 'payroll-sink'; iframe.id = 'payroll-sink'; iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+    }
+    var queue = pending.slice();
+    (function next() {
+        if (!queue.length) { setTimeout(loadPayroll, 700); return; }
+        var r = queue.shift();
+        var form = buildPayslipForm(r, 'payroll-sink');
+        document.body.appendChild(form);
+        iframe.onload = function () { try { form.remove(); } catch (e) {} setTimeout(next, 300); };
+        form.submit();
+    })();
+}
+
+function openPostSalaries() {
+    if (!_payrollData) { alert('Load a month first.'); return; }
+    document.getElementById('pp-month').textContent = monthLabel(_payrollData.month);
+    document.getElementById('pp-result').style.display = 'none';
+    var sel = document.getElementById('pp-account');
+    sel.innerHTML = '<option value="">— Select account —</option>';
+    fetch('accounts-api.php')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            (d.accounts || []).forEach(function (a) {
+                var n = (a.name || '').toLowerCase();
+                if (n === 'employee advances' || n === 'loans receivable') return;
+                sel.add(new Option(a.name + ' (' + a.currency + ')', a.id));
+            });
+        });
+    var card = document.getElementById('payroll-post-card');
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closePostSalaries() {
+    document.getElementById('payroll-post-card').style.display = 'none';
+}
+
+function confirmPostSalaries() {
+    if (!_payrollData) return;
+    var account = document.getElementById('pp-account').value;
+    if (!account) { alert('Pick a source account first.'); return; }
+    if (!confirm('Post net salaries for ' + _payrollData.month + ' to Finances?\n\nEach employee\'s net pay is recorded as an expense in their salary category. Already-posted employees are skipped.')) return;
+
+    apiPost('payroll-post-api.php', { action: 'post', month: _payrollData.month, account_id: account })
+        .then(function (res) {
+            if (res.error) { alert(res.error); return; }
+            var msg = '<strong>Posted ' + res.posted.length + ' salary expense(s)'
+                    + (res.amount_total ? ' — Rs. ' + numFmt(res.amount_total) : '') + '.</strong>';
+            if (res.skipped.length)     msg += ' ' + res.skipped.length + ' already posted this month.';
+            if (res.no_category.length) msg += ' No salary category for: ' + esc(res.no_category.join(', '))
+                                             + ' — create them in Finance Setup → “sync salary categories”.';
+            var el = document.getElementById('pp-result');
+            el.innerHTML = msg;
+            el.style.display = 'block';
+        })
+        .catch(function () { alert('Could not post salaries.'); });
+}
+
 // ── On page load ──────────────────────────────────────────────────────────
 (function init() {
+    loadDashboard();
     rebuildDropdowns();
     loadEmployeeAdvances().then(function() {
         renderEmployeeList();
@@ -1676,18 +2196,24 @@ function showTab(tab, el) {
     document.getElementById('tab-' + tab).classList.add('active');
     el.classList.add('active');
     var titles = {
+        dashboard:    'Dashboard',
         offer:        'Generate Offer Letter',
         payslip:      'Generate Payslip',
         history:      'Document History',
         activity:     'Activity Log',
         team:         'Manage Team',
         finances:     'Finances',
+        reports:      'Reports & Analytics',
+        payroll:      'Payroll Run',
         'fin-setup':  'Finance Setup',
     };
     document.getElementById('page-title').textContent = titles[tab] || '';
+    if (tab === 'dashboard')   loadDashboard();
     if (tab === 'history')     loadHistoryTab();
     if (tab === 'activity')    loadActivityList();
     if (tab === 'finances')    loadFinancesTab();
+    if (tab === 'reports')     loadReports();
+    if (tab === 'payroll')     loadPayroll();
     if (tab === 'fin-setup')   loadFinanceSetupTab();
 }
 

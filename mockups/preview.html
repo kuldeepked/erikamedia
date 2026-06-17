@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Erika Media — New Screens (Mockup)</title>
+
+<!-- Reuse the REAL design system so this matches the live app exactly -->
+<link rel="stylesheet" href="../assets/style.css">
+
+<style>
+/* ════════════════════════════════════════════════════════════════
+   MOCKUP-ONLY component styles.
+   Built entirely on the existing design tokens (var(--accent) etc.).
+   The keepers get folded into assets/style.css at implementation time.
+═══════════════════════════════════════════════════════════════ */
+
+/* Preview notice */
+.preview-banner {
+    background: linear-gradient(135deg, var(--accent-faint), var(--surface-2));
+    border: 1px solid var(--accent-soft);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+.preview-banner strong { color: var(--accent-hover); }
+
+/* "new" pill on nav items */
+.nav-new {
+    margin-left: auto;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--accent);
+    color: #fff;
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+
+/* Screen switching */
+.screen { display: none; }
+.screen.active { display: block; animation: fadeIn 0.18s ease; }
+
+/* Section header (title + actions on one row) */
+.section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.section-head .card-title { margin-bottom: 0; }
+
+/* ── KPI tiles ─────────────────────────────────── */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+    gap: 14px; margin-bottom: 20px;
+}
+.kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 16px 18px; box-shadow: var(--shadow-sm);
+}
+.kpi-top { display: flex; align-items: center; justify-content: space-between; }
+.kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 600; }
+.kpi-ic { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--accent-faint); color: var(--accent-hover); flex-shrink: 0; }
+.kpi-value { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin-top: 12px; color: var(--text); line-height: 1.1; }
+.kpi-delta { font-size: 12px; font-weight: 600; margin-top: 5px; display: inline-flex; align-items: center; gap: 4px; }
+.kpi-delta.up { color: var(--success); }
+.kpi-delta.down { color: var(--danger); }
+.kpi-sub { font-size: 12px; color: var(--text-faint); margin-top: 5px; }
+
+/* ── Dashboard two-column area ─────────────────── */
+.dash-cols { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 920px) { .dash-cols { grid-template-columns: 1fr; } }
+
+/* ── CSS bar chart (no dependencies) ───────────── */
+.chart-plot {
+    display: flex; align-items: flex-end; gap: 16px; height: 180px;
+    padding: 0 4px; border-bottom: 1px solid var(--border);
+}
+.bar-group { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 6px; height: 100%; }
+.bar { width: 24px; border-radius: 4px 4px 0 0; min-height: 2px; transition: opacity 0.15s; }
+.bar:hover { opacity: 0.82; }
+.bar.income { background: var(--success); }
+.bar.expense { background: var(--danger); }
+.bar.net { background: var(--accent); }
+.chart-x { display: flex; gap: 16px; margin-top: 8px; padding: 0 4px; }
+.chart-x span { flex: 1; text-align: center; font-size: 11px; color: var(--text-faint); }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-top: 14px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+/* ── Horizontal category bars ──────────────────── */
+.hbar { display: grid; grid-template-columns: 140px 1fr 108px; align-items: center; gap: 12px; margin-bottom: 11px; font-size: 13px; }
+.hbar-name { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { background: var(--surface-3); border-radius: 999px; height: 10px; overflow: hidden; }
+.hbar-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+.hbar-amt { text-align: right; font-weight: 600; color: var(--text); }
+
+/* ── Activity feed ─────────────────────────────── */
+.act-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.act-row:last-child { border-bottom: none; }
+.act-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.act-main { flex: 1; font-size: 13px; min-width: 0; }
+.act-who { font-weight: 600; }
+.act-meta { font-size: 11.5px; color: var(--text-faint); }
+.act-amt { font-weight: 600; font-size: 13px; white-space: nowrap; }
+.act-amt.pos { color: var(--success); }
+.act-amt.neg { color: var(--danger); }
+
+/* ── Quick actions ─────────────────────────────── */
+.quick-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── Attendance grid ───────────────────────────── */
+.att-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.att-grid { border-collapse: collapse; font-size: 12px; width: 100%; }
+.att-grid th, .att-grid td { border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); text-align: center; }
+.att-grid thead th { background: var(--surface-2); color: var(--text-muted); font-weight: 600; padding: 7px 5px; font-size: 11px; position: sticky; top: 0; }
+.att-grid td.empname, .att-grid th.empname {
+    text-align: left; padding: 8px 14px; white-space: nowrap; font-weight: 600;
+    position: sticky; left: 0; background: var(--surface); z-index: 1; color: var(--text); min-width: 150px;
+}
+.att-grid thead th.empname { background: var(--surface-2); z-index: 2; }
+.att-cell { width: 30px; height: 32px; font-weight: 600; font-size: 11px; }
+.att-P  { background: var(--success-soft); color: var(--success); }
+.att-L  { background: var(--warning-soft); color: var(--warning); }
+.att-V  { background: var(--info-soft);    color: var(--info); }
+.att-A  { background: var(--danger-soft);  color: var(--danger); }
+.att-off{ background: var(--surface-3);    color: var(--text-faint); }
+
+/* num cells reused from finance-table; small helpers */
+td.num, th.num { text-align: right; white-space: nowrap; }
+.neg { color: var(--danger); }
+.tot-row td { font-weight: 700; background: var(--surface-2); border-top: 2px solid var(--border-strong); }
+.eligible { color: var(--success); font-weight: 600; }
+.not-eligible { color: var(--text-faint); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ SIDEBAR ═══════════════════════════ -->
+<aside class="sidebar">
+    <div class="logo-area">
+        <img src="../assets/logo.png" alt="Erika Media" class="sidebar-logo">
+        <div class="company-name">Erika Media</div>
+        <div class="company-tagline">HR Dashboard</div>
+    </div>
+
+    <nav>
+        <div class="nav-label">Main</div>
+        <a class="nav-item active" href="#" data-title="Dashboard" onclick="showScreen('dashboard', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Dashboard <span class="nav-new">new</span>
+        </a>
+
+        <div class="nav-label">Documents</div>
+        <a class="nav-item" href="#" onclick="return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Offer Letter
+        </a>
+        <a class="nav-item" href="#" onclick="return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            Payslip
+        </a>
+        <a class="nav-item" href="#" onclick="return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            History
+        </a>
+
+        <div class="nav-label">Operations</div>
+        <a class="nav-item" href="#" onclick="return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Activity Log
+        </a>
+        <a class="nav-item" href="#" onclick="return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+            Manage Team
+        </a>
+        <a class="nav-item" href="#" data-title="Attendance &amp; Leave" onclick="showScreen('attendance', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg>
+            Attendance <span class="nav-new">new</span>
+        </a>
+        <a class="nav-item" href="#" data-title="Payroll Run" onclick="showScreen('payroll', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="17" cy="15" r="1.5"/></svg>
+            Payroll <span class="nav-new">new</span>
+        </a>
+        <a class="nav-item" href="#" onclick="return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Finances
+        </a>
+        <a class="nav-item" href="#" data-title="Reports &amp; Analytics" onclick="showScreen('reports', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Reports <span class="nav-new">new</span>
+        </a>
+        <a class="nav-item" href="#" onclick="return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Finance Setup
+        </a>
+    </nav>
+
+    <div class="sidebar-footer">
+        Erika Media &copy; 2026<br>
+        Office No. 505, 5th Floor<br>
+        Kashif Center, Sharah-e-Faisal Karachi
+    </div>
+</aside>
+
+<!-- ═══════════════════════════ MAIN ═══════════════════════════ -->
+<div class="main">
+    <div class="topbar">
+        <h1 id="page-title">Dashboard</h1>
+        <div style="display:flex; align-items:center; gap:16px;">
+            <span class="topbar-user">Signed in as <strong>admin</strong></span>
+            <span class="topbar-date">Wednesday, June 17, 2026</span>
+        </div>
+    </div>
+
+    <div class="content-area">
+
+      <div class="preview-banner">
+        <strong>Mockup preview</strong> — these are the four new screens you picked, built on your live design system with sample data.
+        Only the items marked <span class="nav-new" style="margin:0;">new</span> in the sidebar are clickable here
+        (Dashboard, Attendance, Payroll, Reports). Tell me what to change, then I build them into the real app.
+      </div>
+
+      <!-- ───────────────────────── DASHBOARD ───────────────────────── -->
+      <div class="screen active" id="screen-dashboard">
+
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-top"><span class="kpi-label">Net — June</span>
+                    <span class="kpi-ic"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+                </div>
+                <div class="kpi-value">Rs. 312,000</div>
+                <div class="kpi-delta up">▲ 8.2% vs May</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-top"><span class="kpi-label">Income — June</span></div>
+                <div class="kpi-value">Rs. 845,000</div>
+                <div class="kpi-delta up">▲ 4.3% vs May</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-top"><span class="kpi-label">Expenses — June</span></div>
+                <div class="kpi-value">Rs. 533,000</div>
+                <div class="kpi-delta down">▲ 4.8% vs May</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-top"><span class="kpi-label">Interviews</span></div>
+                <div class="kpi-value">27</div>
+                <div class="kpi-sub">3 placements this month</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-top"><span class="kpi-label">Headcount</span></div>
+                <div class="kpi-value">6</div>
+                <div class="kpi-sub">All active</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-top"><span class="kpi-label">Outstanding advances</span></div>
+                <div class="kpi-value">Rs. 64,000</div>
+                <div class="kpi-sub">across 3 employees</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-top"><span class="kpi-label">Outstanding loans</span></div>
+                <div class="kpi-value">Rs. 120,000</div>
+                <div class="kpi-sub">2 open · 1 settled</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-top"><span class="kpi-label">Upcoming payroll</span>
+                    <span class="kpi-ic"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                </div>
+                <div class="kpi-value">Rs. 407,100</div>
+                <div class="kpi-sub">due Jul 5 · 6 employees</div>
+            </div>
+        </div>
+
+        <div class="dash-cols">
+            <div class="card">
+                <div class="section-head">
+                    <div class="card-title">Cash flow — last 6 months</div>
+                    <div class="legend"><span><i style="background:var(--success)"></i>Income</span><span><i style="background:var(--danger)"></i>Expense</span></div>
+                </div>
+                <div class="chart-plot">
+                    <div class="bar-group"><div class="bar income" style="height:69%"></div><div class="bar expense" style="height:53%"></div></div>
+                    <div class="bar-group"><div class="bar income" style="height:78%"></div><div class="bar expense" style="height:57%"></div></div>
+                    <div class="bar-group"><div class="bar income" style="height:60%"></div><div class="bar expense" style="height:52%"></div></div>
+                    <div class="bar-group"><div class="bar income" style="height:87%"></div><div class="bar expense" style="height:58%"></div></div>
+                    <div class="bar-group"><div class="bar income" style="height:90%"></div><div class="bar expense" style="height:62%"></div></div>
+                    <div class="bar-group"><div class="bar income" style="height:94%"></div><div class="bar expense" style="height:59%"></div></div>
+                </div>
+                <div class="chart-x"><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span></div>
+
+                <div class="section-head" style="margin-top:28px;">
+                    <div class="card-title">Recent activity</div>
+                    <button class="btn-link">View all →</button>
+                </div>
+                <div>
+                    <div class="act-row"><span class="act-dot" style="background:var(--info)"></span><div class="act-main"><span class="act-who">Ali Haider</span> — interview secured<div class="act-meta">Jun 16 · Reverse recruiting</div></div><span class="act-amt pos">+Rs. 1,300</span></div>
+                    <div class="act-row"><span class="act-dot" style="background:var(--success)"></span><div class="act-main"><span class="act-who">Zunhara Jamil</span> — client placement<div class="act-meta">Jun 15</div></div><span class="act-amt pos">+Rs. 30,000</span></div>
+                    <div class="act-row"><span class="act-dot" style="background:var(--warning)"></span><div class="act-main"><span class="act-who">Sana Mirza</span> — punctuality bonus<div class="act-meta">Jun 14</div></div><span class="act-amt pos">+Rs. 5,000</span></div>
+                    <div class="act-row"><span class="act-dot" style="background:var(--danger)"></span><div class="act-main"><span class="act-who">Bilal Ahmed</span> — late penalty<div class="act-meta">Jun 12</div></div><span class="act-amt neg">−Rs. 1,000</span></div>
+                    <div class="act-row"><span class="act-dot" style="background:var(--info)"></span><div class="act-main"><span class="act-who">Hassan Raza</span> — interview secured<div class="act-meta">Jun 10</div></div><span class="act-amt pos">+Rs. 1,300</span></div>
+                </div>
+            </div>
+
+            <div>
+                <div class="card">
+                    <div class="card-title" style="margin-bottom:14px;">Top performer — June</div>
+                    <div style="display:flex; align-items:center; gap:14px;">
+                        <div style="width:48px; height:48px; border-radius:50%; background:var(--accent-soft); color:var(--accent-hover); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px;">ZJ</div>
+                        <div>
+                            <div style="font-weight:700; font-size:15px;">Zunhara Jamil</div>
+                            <div style="font-size:12px; color:var(--text-faint);">Reverse Recruiting Agent</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:16px;">
+                        <div style="flex:1; text-align:center; padding:10px; background:var(--surface-2); border-radius:var(--radius-sm);"><div style="font-size:20px; font-weight:700;">11</div><div style="font-size:11px; color:var(--text-muted);">Interviews</div></div>
+                        <div style="flex:1; text-align:center; padding:10px; background:var(--surface-2); border-radius:var(--radius-sm);"><div style="font-size:20px; font-weight:700;">2</div><div style="font-size:11px; color:var(--text-muted);">Placements</div></div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:18px;">
+                    <div class="card-title" style="margin-bottom:14px;">Quick actions</div>
+                    <div class="quick-actions">
+                        <button class="btn-generate" style="margin-top:0;">＋ Offer letter</button>
+                        <button class="btn-autofill">＋ Payslip</button>
+                        <button class="btn-tool">＋ Finance entry</button>
+                        <button class="btn-tool">Run payroll</button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:18px;">
+                    <div class="card-title" style="margin-bottom:6px;">This month at a glance</div>
+                    <div class="card-subtitle" style="margin-bottom:14px; padding-bottom:14px;">June 2026</div>
+                    <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:13px;"><span style="color:var(--text-muted);">Payslips generated</span><strong>4 / 6</strong></div>
+                    <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:13px;"><span style="color:var(--text-muted);">Offer letters sent</span><strong>2</strong></div>
+                    <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:13px;"><span style="color:var(--text-muted);">Avg. attendance</span><strong>96%</strong></div>
+                    <div style="display:flex; justify-content:space-between; padding:6px 0; font-size:13px;"><span style="color:var(--text-muted);">Bonus-eligible staff</span><strong>4 / 6</strong></div>
+                </div>
+            </div>
+        </div>
+      </div>
+
+      <!-- ───────────────────────── REPORTS ───────────────────────── -->
+      <div class="screen" id="screen-reports">
+        <div class="card">
+            <div class="section-head">
+                <div>
+                    <div class="card-title">Reports &amp; Analytics</div>
+                    <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Surfacing the data your <code>reports-api.php</code> already computes.</div>
+                </div>
+                <div class="finance-controls" style="margin-bottom:0;">
+                    <select><option>Business book</option><option>Personal book</option><option>All books</option></select>
+                    <input type="month" value="2026-06">
+                    <a class="finance-export" style="margin-left:0;">⇩ Export CSV</a>
+                </div>
+            </div>
+
+            <div class="finance-summary" style="margin-top:18px;">
+                <div class="fin-summary-card fin-in"><div class="fin-label">Income (12 mo)</div><div class="fin-value">Rs. 8.42M</div></div>
+                <div class="fin-summary-card fin-out"><div class="fin-label">Expense (12 mo)</div><div class="fin-value">Rs. 6.18M</div></div>
+                <div class="fin-summary-card fin-net"><div class="fin-label">Net (12 mo)</div><div class="fin-value">Rs. 2.24M</div></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:18px;">
+            <div class="section-head"><div class="card-title">Net profit — last 8 months</div>
+                <div class="legend"><span><i style="background:var(--accent)"></i>Net (income − expense)</span></div>
+            </div>
+            <div class="chart-plot">
+                <div class="bar-group"><div class="bar net" style="height:31%"></div></div>
+                <div class="bar-group"><div class="bar net" style="height:27%"></div></div>
+                <div class="bar-group"><div class="bar net" style="height:40%"></div></div>
+                <div class="bar-group"><div class="bar net" style="height:54%"></div></div>
+                <div class="bar-group"><div class="bar net" style="height:20%"></div></div>
+                <div class="bar-group"><div class="bar net" style="height:74%"></div></div>
+                <div class="bar-group"><div class="bar net" style="height:71%"></div></div>
+                <div class="bar-group"><div class="bar net" style="height:89%"></div></div>
+            </div>
+            <div class="chart-x"><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span></div>
+        </div>
+
+        <div class="dash-cols" style="margin-top:18px;">
+            <div class="card">
+                <div class="card-title" style="margin-bottom:18px;">Expenses by category — June</div>
+                <div class="hbar"><span class="hbar-name">Salaries</span><div class="hbar-track"><div class="hbar-fill" style="width:60%; background:var(--danger);"></div></div><span class="hbar-amt">Rs. 320,000</span></div>
+                <div class="hbar"><span class="hbar-name">Office rent</span><div class="hbar-track"><div class="hbar-fill" style="width:14%; background:var(--danger);"></div></div><span class="hbar-amt">Rs. 75,000</span></div>
+                <div class="hbar"><span class="hbar-name">Utilities</span><div class="hbar-track"><div class="hbar-fill" style="width:8%; background:var(--danger);"></div></div><span class="hbar-amt">Rs. 42,000</span></div>
+                <div class="hbar"><span class="hbar-name">Software / tools</span><div class="hbar-track"><div class="hbar-fill" style="width:7%; background:var(--danger);"></div></div><span class="hbar-amt">Rs. 37,000</span></div>
+                <div class="hbar"><span class="hbar-name">Marketing</span><div class="hbar-track"><div class="hbar-fill" style="width:6%; background:var(--danger);"></div></div><span class="hbar-amt">Rs. 32,000</span></div>
+                <div class="hbar"><span class="hbar-name">Miscellaneous</span><div class="hbar-track"><div class="hbar-fill" style="width:5%; background:var(--danger);"></div></div><span class="hbar-amt">Rs. 27,000</span></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title" style="margin-bottom:18px;">Performance by employee — June</div>
+                <table class="emp-table">
+                    <thead><tr><th>Employee</th><th class="num">Interviews</th><th class="num">Placed</th><th class="num">Commission</th></tr></thead>
+                    <tbody>
+                        <tr><td>Zunhara Jamil</td><td class="num">11</td><td class="num">2</td><td class="num">Rs. 74,300</td></tr>
+                        <tr><td>Ali Haider</td><td class="num">7</td><td class="num">1</td><td class="num">Rs. 39,100</td></tr>
+                        <tr><td>Sana Mirza</td><td class="num">5</td><td class="num">0</td><td class="num">Rs. 6,500</td></tr>
+                        <tr><td>Hassan Raza</td><td class="num">3</td><td class="num">0</td><td class="num">Rs. 3,900</td></tr>
+                        <tr><td>Bilal Ahmed</td><td class="num">1</td><td class="num">0</td><td class="num">Rs. 1,300</td></tr>
+                        <tr><td>Ayesha Khan</td><td class="num">0</td><td class="num">0</td><td class="num">Rs. 0</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+      </div>
+
+      <!-- ───────────────────────── ATTENDANCE ───────────────────────── -->
+      <div class="screen" id="screen-attendance">
+        <div class="card">
+            <div class="section-head">
+                <div>
+                    <div class="card-title">Attendance &amp; Leave</div>
+                    <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Daily attendance feeds payslip deductions and the punctuality bonus automatically.</div>
+                </div>
+                <div class="finance-controls" style="margin-bottom:0;">
+                    <input type="month" value="2026-06">
+                    <button class="btn-finance-primary">＋ Mark attendance</button>
+                </div>
+            </div>
+
+            <div class="legend" style="margin:4px 0 16px;">
+                <span><i style="background:var(--success)"></i>Present (P)</span>
+                <span><i style="background:var(--warning)"></i>Late (L)</span>
+                <span><i style="background:var(--info)"></i>Leave (V)</span>
+                <span><i style="background:var(--danger)"></i>Absent (A)</span>
+                <span><i style="background:var(--surface-3)"></i>Weekend / off</span>
+            </div>
+
+            <div class="att-wrap">
+                <table class="att-grid" id="attTable"><!-- rendered by JS --></table>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:18px;">
+            <div class="card-title" style="margin-bottom:18px;">June summary &amp; payslip impact</div>
+            <table class="emp-table" id="attSummary"><!-- rendered by JS --></table>
+        </div>
+      </div>
+
+      <!-- ───────────────────────── PAYROLL ───────────────────────── -->
+      <div class="screen" id="screen-payroll">
+        <div class="card">
+            <div class="section-head">
+                <div>
+                    <div class="card-title">Payroll Run — June 2026</div>
+                    <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Auto-pulls salary advances and attendance. One click per slip, or run the whole month.</div>
+                </div>
+                <div class="finance-actions">
+                    <input type="month" value="2026-06" style="padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); font-family:inherit;">
+                    <button class="btn-finance-secondary">⇩ Generate all payslips</button>
+                    <button class="btn-finance-primary">Post salaries to Finances</button>
+                </div>
+            </div>
+
+            <div class="info-tip" style="margin-top:18px;">
+                <span>ⓘ</span>
+                <span>Net pay = Basic + Allowance + Commission − Salary advance − Attendance deduction. Figures below are pulled from Activity Log, advances, and the Attendance screen.</span>
+            </div>
+
+            <div class="finance-table-wrap">
+                <table class="finance-table">
+                    <thead><tr><th>Employee</th><th class="num">Basic</th><th class="num">Allowance</th><th class="num">Commission</th><th class="num">Advance</th><th class="num">Attend. ded.</th><th class="num">Net pay</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        <tr><td>Zunhara Jamil</td><td class="num">60,000</td><td class="num">5,000</td><td class="num">74,300</td><td class="num neg">−10,000</td><td class="num">0</td><td class="num"><strong>Rs. 129,300</strong></td><td><span class="paid-badge">Generated</span></td><td class="num"><button class="btn-edit">Slip</button></td></tr>
+                        <tr><td>Ali Haider</td><td class="num">55,000</td><td class="num">5,000</td><td class="num">39,100</td><td class="num">0</td><td class="num">0</td><td class="num"><strong>Rs. 99,100</strong></td><td><span class="paid-badge">Generated</span></td><td class="num"><button class="btn-edit">Slip</button></td></tr>
+                        <tr><td>Sana Mirza</td><td class="num">45,000</td><td class="num">5,000</td><td class="num">6,500</td><td class="num neg">−8,000</td><td class="num">0</td><td class="num"><strong>Rs. 48,500</strong></td><td><span class="unpaid-badge">Draft</span></td><td class="num"><button class="btn-edit">Slip</button></td></tr>
+                        <tr><td>Hassan Raza</td><td class="num">42,000</td><td class="num">5,000</td><td class="num">3,900</td><td class="num">0</td><td class="num neg">−1,000</td><td class="num"><strong>Rs. 49,900</strong></td><td><span class="unpaid-badge">Draft</span></td><td class="num"><button class="btn-edit">Slip</button></td></tr>
+                        <tr><td>Bilal Ahmed</td><td class="num">40,000</td><td class="num">5,000</td><td class="num">1,300</td><td class="num neg">−6,000</td><td class="num neg">−1,000</td><td class="num"><strong>Rs. 39,300</strong></td><td><span class="unpaid-badge">Draft</span></td><td class="num"><button class="btn-edit">Slip</button></td></tr>
+                        <tr><td>Ayesha Khan</td><td class="num">38,000</td><td class="num">5,000</td><td class="num">0</td><td class="num">0</td><td class="num neg">−2,000</td><td class="num"><strong>Rs. 41,000</strong></td><td><span class="unpaid-badge">Draft</span></td><td class="num"><button class="btn-edit">Slip</button></td></tr>
+                        <tr class="tot-row"><td>Total — 6 employees</td><td class="num">280,000</td><td class="num">30,000</td><td class="num">125,100</td><td class="num neg">−24,000</td><td class="num neg">−4,000</td><td class="num">Rs. 407,100</td><td colspan="2"></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+      </div>
+
+    </div><!-- /content-area -->
+</div><!-- /main -->
+
+<script>
+function showScreen(id, el) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('screen-' + id).classList.add('active');
+    el.classList.add('active');
+    document.getElementById('page-title').textContent = el.dataset.title || '';
+    window.scrollTo(0, 0);
+}
+
+/* ── Attendance grid + summary (generated from data) ── */
+(function () {
+    const DAYS = 20;                       // showing first 20 days of June
+    const WEEKEND = [6, 7, 13, 14, 20];    // Sat/Sun in June 2026
+    const team = [
+        { name: 'Zunhara Jamil', over: { 3: 'L' } },
+        { name: 'Ali Haider',    over: {} },
+        { name: 'Sana Mirza',    over: { 10: 'V' } },
+        { name: 'Hassan Raza',   over: { 17: 'L' } },
+        { name: 'Bilal Ahmed',   over: { 5: 'L', 12: 'L' } },
+        { name: 'Ayesha Khan',   over: { 8: 'A' } },
+    ];
+    const statusFor = (emp, d) => WEEKEND.includes(d) ? 'off' : (emp.over[d] || 'P');
+    const letter = { P: 'P', L: 'L', V: 'V', A: 'A', off: '·' };
+
+    // header
+    let head = '<thead><tr><th class="empname">Employee</th>';
+    for (let d = 1; d <= DAYS; d++) head += '<th>' + d + '</th>';
+    head += '</tr></thead>';
+
+    // body
+    let body = '<tbody>';
+    team.forEach(emp => {
+        body += '<tr><td class="empname">' + emp.name + '</td>';
+        for (let d = 1; d <= DAYS; d++) {
+            const s = statusFor(emp, d);
+            body += '<td class="att-cell att-' + s + '">' + letter[s] + '</td>';
+        }
+        body += '</tr>';
+    });
+    body += '</tbody>';
+    document.getElementById('attTable').innerHTML = head + body;
+
+    // summary
+    let sum = '<thead><tr><th>Employee</th><th class="num">Present</th><th class="num">Late</th><th class="num">Leave</th><th class="num">Absent</th><th class="num">Est. deduction</th><th>Punctuality bonus</th></tr></thead><tbody>';
+    team.forEach(emp => {
+        let p = 0, l = 0, v = 0, a = 0;
+        for (let d = 1; d <= DAYS; d++) {
+            const s = statusFor(emp, d);
+            if (s === 'P') p++; else if (s === 'L') l++; else if (s === 'V') v++; else if (s === 'A') a++;
+        }
+        // mock rule: 3rd late = 1 absence-day; >2 lates OR any absence => no bonus
+        const ded = a * 1500 + (l > 2 ? 1500 : 0);
+        const eligible = (l <= 2 && a === 0);
+        sum += '<tr><td>' + emp.name + '</td>'
+            + '<td class="num">' + p + '</td>'
+            + '<td class="num">' + (l || '—') + '</td>'
+            + '<td class="num">' + (v || '—') + '</td>'
+            + '<td class="num">' + (a || '—') + '</td>'
+            + '<td class="num">' + (ded ? 'Rs. ' + ded.toLocaleString() : '—') + '</td>'
+            + '<td>' + (eligible ? '<span class="eligible">Eligible · +Rs. 5,000</span>' : '<span class="not-eligible">Not eligible</span>') + '</td></tr>';
+    });
+    sum += '</tbody>';
+    document.getElementById('attSummary').innerHTML = sum;
+})();
+</script>
+</body>
+</html>

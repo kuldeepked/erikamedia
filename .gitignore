@@ -12,3 +12,14 @@
 history.json
 finances.json
 petty-cash.json
+
+# Live SQLite database (financial data) — never commit.
+db/
+
+# Attendance module — secrets + generated data. Never commit.
+# (gitignore treats inline '#' as literal, so comments go on their own line.)
+.attendance-settings.json
+.attendance-accounts.json
+.attendance-throttle.json
+.attendance-devices.json
+attendance.json
