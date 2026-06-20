@@ -195,7 +195,7 @@ $earn_rows = [
     ['Allowance',       $allowance],
 ];
 if ($commission      > 0) $earn_rows[] = ['Commission',      $commission];
-if ($performer_bonus > 0) $earn_rows[] = ['Performer Bonus', $performer_bonus];
+if ($performer_bonus > 0) $earn_rows[] = ['Punctuality Bonus', $performer_bonus];
 
 // Build deduction rows (only show if > 0)
 $ded_rows = [];

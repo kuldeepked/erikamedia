@@ -9,6 +9,19 @@ $default_month = date('Y-m');
 // Load saved employees for initial page render
 $empFile   = __DIR__ . '/employees.json';
 $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), true) ?: []) : [];
+
+// Suggest the next invoice number (EM-YYYY-NNN) from invoices.json.
+$invFile = __DIR__ . '/invoices.json';
+$invList = file_exists($invFile) ? (json_decode(file_get_contents($invFile), true) ?: []) : [];
+$invYear = date('Y');
+$invSeq  = 0;
+foreach ($invList as $iv) {
+    if (preg_match('/^EM-' . $invYear . '-(\d+)$/', (string) ($iv['invoice_no'] ?? ''), $m)) {
+        $invSeq = max($invSeq, (int) $m[1]);
+    }
+}
+$nextInvoiceNo = 'EM-' . $invYear . '-' . str_pad((string) ($invSeq + 1), 3, '0', STR_PAD_LEFT);
+$invDueDefault = date('Y-m-d', strtotime('+7 days'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -72,6 +85,17 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
                 <line x1="3" y1="19" x2="21" y2="19"/>
             </svg>
             Blank Letterhead
+        </a>
+
+        <a class="nav-item" id="nav-invoice" href="#"
+           onclick="showTab('invoice', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="9" y1="13" x2="15" y2="13"/>
+                <line x1="9" y1="17" x2="13" y2="17"/>
+            </svg>
+            Invoices
         </a>
 
         <a class="nav-item" id="nav-history" href="#"
@@ -1044,6 +1068,82 @@ $employees = file_exists($empFile) ? (json_decode(file_get_contents($empFile), t
         </div>
 
         <!-- ─────────────────────────────────────
+             CREATE INVOICE
+        ───────────────────────────────────── -->
+        <div id="tab-invoice" class="tab-content">
+            <div class="card">
+                <div class="card-title">Create Invoice</div>
+                <div class="card-subtitle">Bill a client — fill in the details and line items, then Generate to open a print-ready invoice in a new tab.</div>
+
+                <form action="generate-invoice.php" method="POST" target="_blank" onsubmit="return invoiceBeforeSubmit()">
+                    <input type="hidden" name="_csrf" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES) ?>">
+
+                    <div class="section-label">Bill To</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Client name *</label>
+                            <input type="text" name="client_name" required placeholder="e.g. Acme Corp">
+                        </div>
+                        <div class="form-group">
+                            <label>Client email</label>
+                            <input type="text" name="client_email" placeholder="billing@client.com">
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label>Client address</label>
+                            <input type="text" name="client_address" placeholder="Street, City, Country">
+                        </div>
+                    </div>
+
+                    <div class="section-label">Invoice Details</div>
+                    <div class="form-grid form-grid-3">
+                        <div class="form-group">
+                            <label>Invoice #</label>
+                            <input type="text" name="invoice_no" value="<?= htmlspecialchars($nextInvoiceNo, ENT_QUOTES) ?>">
+                        </div>
+                        <div class="form-group">
+                            <label>Issue date</label>
+                            <input type="date" name="issue_date" value="<?= $default_date ?>">
+                        </div>
+                        <div class="form-group">
+                            <label>Due date</label>
+                            <input type="date" name="due_date" value="<?= $invDueDefault ?>">
+                        </div>
+                        <div class="form-group">
+                            <label>Currency</label>
+                            <input type="text" name="currency" value="Rs." placeholder="Rs. / $ / USD" oninput="recalcInvoice()">
+                        </div>
+                    </div>
+
+                    <div class="section-label">Line Items</div>
+                    <div class="invoice-head">
+                        <span>Description</span><span>Qty</span><span>Unit price</span><span class="r">Amount</span><span></span>
+                    </div>
+                    <div id="invoice-items"></div>
+                    <button type="button" class="btn-tool" style="margin-top:4px;" onclick="addInvoiceItem()">＋ Add line</button>
+
+                    <div class="form-grid form-grid-3" style="margin-top:20px;">
+                        <div class="form-group">
+                            <label>Tax (%)</label>
+                            <input type="number" name="tax_percent" id="inv-tax" min="0" step="0.01" value="0" oninput="recalcInvoice()">
+                        </div>
+                    </div>
+
+                    <div class="invoice-summary" id="invoice-summary"></div>
+
+                    <div class="form-group" style="margin-top:18px;">
+                        <label>Notes / payment terms</label>
+                        <input type="text" name="notes" placeholder="e.g. Payable within 7 days · Bank: HBL — Erika Media, Acct 1234…">
+                    </div>
+
+                    <button type="submit" class="btn-generate">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        Generate Invoice
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────
              PAYROLL RUN
         ───────────────────────────────────── -->
         <div id="tab-payroll" class="tab-content">
@@ -1533,6 +1633,69 @@ function confirmPostSalaries() {
             el.style.display = 'block';
         })
         .catch(function () { alert('Could not post salaries.'); });
+}
+
+// ── Invoices ──────────────────────────────────────────────────────────────
+function addInvoiceItem(qty, price) {
+    var wrap = document.getElementById('invoice-items');
+    if (!wrap) return;
+    var row = document.createElement('div');
+    row.className = 'invoice-row';
+    row.innerHTML =
+        '<input type="text" name="item_desc[]" placeholder="Service / item description" oninput="recalcInvoice()">'
+      + '<input type="number" name="item_qty[]" min="0" step="0.01" value="' + (qty || 1) + '" oninput="recalcInvoice()">'
+      + '<input type="number" name="item_price[]" min="0" step="0.01" value="' + (price != null ? price : '') + '" placeholder="0" oninput="recalcInvoice()">'
+      + '<span class="invoice-amt">—</span>'
+      + '<button type="button" class="invoice-del" title="Remove" onclick="this.parentNode.remove(); recalcInvoice();">&times;</button>';
+    wrap.appendChild(row);
+    recalcInvoice();
+}
+
+function invoiceCurrency() {
+    var el = document.querySelector('#tab-invoice [name="currency"]');
+    return (el && el.value.trim()) || 'Rs.';
+}
+
+function recalcInvoice() {
+    var cur = invoiceCurrency();
+    var dec = /rs|pkr/i.test(cur) ? 0 : 2;
+    var fmt = function (v) { return cur + ' ' + v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }); };
+
+    var subtotal = 0;
+    document.querySelectorAll('#invoice-items .invoice-row').forEach(function (r) {
+        var q = parseFloat(r.querySelector('[name="item_qty[]"]').value || 0);
+        var p = parseFloat(r.querySelector('[name="item_price[]"]').value || 0);
+        var amt = (isNaN(q) ? 0 : q) * (isNaN(p) ? 0 : p);
+        subtotal += amt;
+        r.querySelector('.invoice-amt').textContent = fmt(amt);
+    });
+    var taxPct = parseFloat(document.getElementById('inv-tax').value || 0);
+    if (isNaN(taxPct)) taxPct = 0;
+    var tax = subtotal * taxPct / 100;
+    var total = subtotal + tax;
+
+    var html = '<div class="inv-sum-row"><span>Subtotal</span><span>' + fmt(subtotal) + '</span></div>';
+    if (taxPct > 0) html += '<div class="inv-sum-row"><span>Tax (' + taxPct + '%)</span><span>' + fmt(tax) + '</span></div>';
+    html += '<div class="inv-sum-row inv-sum-total"><span>Total</span><span>' + fmt(total) + '</span></div>';
+    document.getElementById('invoice-summary').innerHTML = html;
+}
+
+function initInvoiceTab() {
+    if (!document.querySelectorAll('#invoice-items .invoice-row').length) {
+        addInvoiceItem();
+        addInvoiceItem();
+    } else {
+        recalcInvoice();
+    }
+}
+
+function invoiceBeforeSubmit() {
+    var ok = false;
+    document.querySelectorAll('#invoice-items [name="item_desc[]"]').forEach(function (el) {
+        if (el.value.trim()) ok = true;
+    });
+    if (!ok) { alert('Add at least one line item with a description.'); return false; }
+    return true;
 }
 
 // ── On page load ──────────────────────────────────────────────────────────
@@ -2199,6 +2362,7 @@ function showTab(tab, el) {
         dashboard:    'Dashboard',
         offer:        'Generate Offer Letter',
         payslip:      'Generate Payslip',
+        invoice:      'Create Invoice',
         history:      'Document History',
         activity:     'Activity Log',
         team:         'Manage Team',
@@ -2209,6 +2373,7 @@ function showTab(tab, el) {
     };
     document.getElementById('page-title').textContent = titles[tab] || '';
     if (tab === 'dashboard')   loadDashboard();
+    if (tab === 'invoice')     initInvoiceTab();
     if (tab === 'history')     loadHistoryTab();
     if (tab === 'activity')    loadActivityList();
     if (tab === 'finances')    loadFinancesTab();
