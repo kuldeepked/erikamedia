@@ -1110,7 +1110,10 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
                         </div>
                         <div class="form-group">
                             <label>Currency</label>
-                            <input type="text" name="currency" value="Rs." placeholder="Rs. / $ / USD" oninput="recalcInvoice()">
+                            <select name="currency" onchange="recalcInvoice()">
+                                <option value="Rs.">PKR — Rs.</option>
+                                <option value="$">USD — $</option>
+                            </select>
                         </div>
                     </div>
 
