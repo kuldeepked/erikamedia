@@ -12,6 +12,7 @@
 history.json
 finances.json
 petty-cash.json
+invoices.json
 
 # Live SQLite database (financial data) — never commit.
 db/
