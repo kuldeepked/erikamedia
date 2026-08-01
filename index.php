@@ -1549,7 +1549,13 @@ function buildPayslipForm(r, target) {
         professional_tax: r.professional_tax,
         absent_late: r.absent_late,
         penalty: r.penalty,
-        paid_activity_ids: (r.activity_ids || []).join(',')
+        paid_activity_ids: (r.activity_ids || []).join(','),
+        // A payslip already exists for this employee/month, so this is a
+        // reprint. generate-payslip.php skips its side effects when this is
+        // set — without it a Re-gen click writes a SECOND advance recovery,
+        // wiping a real receivable off the books, and duplicates the history
+        // record. regenerate.php has always sent this; this form did not.
+        is_regen: r.generated ? '1' : ''
     };
     Object.keys(fields).forEach(function (k) {
         var inp = document.createElement('input');
