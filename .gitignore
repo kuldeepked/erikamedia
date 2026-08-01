@@ -24,3 +24,7 @@ db/
 .attendance-throttle.json
 .attendance-devices.json
 attendance.json
+
+# Live data — tracked historically, must never be committed or uploaded again.
+employees.json
+activity.json

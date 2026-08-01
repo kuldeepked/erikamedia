@@ -11,6 +11,25 @@ Options -Indexes
     Require all denied
 </FilesMatch>
 
+# ── Block the SQLite database and its WAL/SHM sidecars ──
+# db/erika.sqlite lives inside the web root, so without this it is a
+# straight download of the entire financial ledger. The -wal/-shm
+# suffixes are matched explicitly because they come AFTER the extension.
+<FilesMatch "\.(sqlite|sqlite3|db)(-wal|-shm|-journal)?$">
+    Require all denied
+</FilesMatch>
+
+# ── Block backups, archives and source leftovers ──
+# index.php.bak served as plain text = full dashboard source disclosure.
+<FilesMatch "\.(bak|old|orig|save|swp|sql|zip|tar|gz|tgz|ini|env|dist|example)$">
+    Require all denied
+</FilesMatch>
+
+# ── Belt and braces: deny the whole db/ directory ──
+<IfModule mod_alias.c>
+    RedirectMatch 404 ^/dashboard/db/
+</IfModule>
+
 # ── Block access to dotfiles (.admin.json, .htaccess, etc.) ──
 <FilesMatch "^\.">
     Require all denied

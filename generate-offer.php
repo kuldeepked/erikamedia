@@ -330,17 +330,29 @@ unset($_hf, $_hist);
 
             <h3>4. Attendance and Leave Policy</h3>
 
-            <h3 style="font-size:12.5px;">4.1 During Probation</h3>
-            <p>During the probation period, taking days off is strongly discouraged and will only be permitted in cases of genuine emergency, subject to prior approval by the Company.</p>
-
-            <h3 style="font-size:12.5px;">4.2 After Probation (Permanent Employment)</h3>
+            <h3 style="font-size:12.5px;">4.1 Working Days and Weekly Off</h3>
             <ul>
-                <li>You are entitled to two (2) paid leave days per month.</li>
-                <li>If you take more than two (2) days of leave in a month, salary will be deducted proportionally for each additional day.</li>
-                <li>Taking leave on the day immediately following a public holiday will result in all intervening public holidays being treated as unpaid leave, with corresponding salary deductions.</li>
-                <li>Two (2) late arrivals per month are permitted. A third late arrival will be counted as one day of absence and will be subject to deduction if applicable.</li>
-                <li>You must inform the Company in advance before taking any leave or holiday so that your clients may be temporarily reassigned to ensure uninterrupted service delivery.</li>
+                <li>Sunday is a weekly off day.</li>
+                <li>Saturdays operate on an alternate (hybrid) schedule: you are required to attend on alternate Saturdays. The applicable Saturday roster will be communicated to you in advance by the Company.</li>
+                <li>Apart from the weekly offs described above, the Company does not observe scheduled public, festival, or occasional holidays, and no such days form part of your leave entitlement.</li>
+                <li>This does not mean such days will never be given. Where workload genuinely permits, the Company may at its discretion declare an occasional day off. Any such day is situational and decided case by case; it is a gesture by the Company and not an entitlement that may be relied upon or planned around.</li>
             </ul>
+
+            <h3 style="font-size:12.5px;">4.2 During Probation</h3>
+            <p>You are not entitled to any paid leave during the probation period. Days off are strongly discouraged and will be permitted only in cases of genuine emergency, subject to prior approval by the Company, and will be unpaid.</p>
+
+            <h3 style="font-size:12.5px;">4.3 After Probation (Permanent Employment)</h3>
+            <ul>
+                <li>You are entitled to two (2) paid leave days per calendar month, in addition to the weekly offs described in clause 4.1.</li>
+                <li><strong>Encashment of unused leave.</strong> If you do not use your two (2) paid leave days within a calendar month, the unused days will be paid out to you together with that month&rsquo;s salary. Unused paid leave does not carry forward to the following month.</li>
+                <li>If you take more than two (2) days of leave in a month, salary will be deducted proportionally for each additional day.</li>
+                <li>Taking leave on the day immediately preceding or following a Company-granted day off will result in the intervening days being treated as unpaid leave, with corresponding salary deductions.</li>
+                <li>Two (2) late arrivals per month are permitted. A third late arrival will be counted as one day of absence and will be subject to deduction if applicable.</li>
+                <li>You must inform the Company in advance before taking any leave so that your clients may be temporarily reassigned to ensure uninterrupted service delivery.</li>
+            </ul>
+
+            <h3 style="font-size:12.5px;">4.4 Work-Life Balance</h3>
+            <p>We value you as a member of our team. The policy above is intended to keep service to our clients uninterrupted while still protecting your time away from work &mdash; your paid leave is yours to use, and if you choose not to use it, you are paid for it. Where our workload genuinely allows, we would rather give you the day off than have you sitting at a desk.</p>
 
             <h3>5. Notice Period</h3>
             <p>Should you wish to resign from your position, you are required to provide a minimum of fifteen (15) calendar days&rsquo; written notice to the Company. During the notice period, you must continue to perform your duties in full. Failure to serve the complete notice period may result in forfeiture of any outstanding salary or commission payments for the notice period.</p>
@@ -465,17 +477,29 @@ unset($_hf, $_hist);
 
             <h3>4. Attendance and Leave Policy</h3>
 
-            <h3 style="font-size:12.5px;">4.1 During Probation</h3>
-            <p>During the probation period, taking days off is strongly discouraged and will only be permitted in cases of genuine emergency, subject to prior approval by the Company.</p>
-
-            <h3 style="font-size:12.5px;">4.2 After Probation (Permanent Employment)</h3>
+            <h3 style="font-size:12.5px;">4.1 Working Days and Weekly Off</h3>
             <ul>
-                <li>You are entitled to two (2) paid leave days per month.</li>
-                <li>If you take more than two (2) days of leave in a month, salary will be deducted proportionally for each additional day.</li>
-                <li>Taking leave on the day immediately following a public holiday will result in all intervening public holidays being treated as unpaid leave, with corresponding salary deductions.</li>
-                <li>Two (2) late arrivals per month are permitted. A third late arrival will be counted as one day of absence and will be subject to deduction if applicable.</li>
-                <li>You must inform the Company in advance before taking any leave or holiday so that QA coverage may be temporarily reassigned to ensure uninterrupted service delivery.</li>
+                <li>Sunday is a weekly off day.</li>
+                <li>Saturdays operate on an alternate (hybrid) schedule: you are required to attend on alternate Saturdays. The applicable Saturday roster will be communicated to you in advance by the Company.</li>
+                <li>Apart from the weekly offs described above, the Company does not observe scheduled public, festival, or occasional holidays, and no such days form part of your leave entitlement.</li>
+                <li>This does not mean such days will never be given. Where workload genuinely permits, the Company may at its discretion declare an occasional day off. Any such day is situational and decided case by case; it is a gesture by the Company and not an entitlement that may be relied upon or planned around.</li>
             </ul>
+
+            <h3 style="font-size:12.5px;">4.2 During Probation</h3>
+            <p>You are not entitled to any paid leave during the probation period. Days off are strongly discouraged and will be permitted only in cases of genuine emergency, subject to prior approval by the Company, and will be unpaid.</p>
+
+            <h3 style="font-size:12.5px;">4.3 After Probation (Permanent Employment)</h3>
+            <ul>
+                <li>You are entitled to two (2) paid leave days per calendar month, in addition to the weekly offs described in clause 4.1.</li>
+                <li><strong>Encashment of unused leave.</strong> If you do not use your two (2) paid leave days within a calendar month, the unused days will be paid out to you together with that month&rsquo;s salary. Unused paid leave does not carry forward to the following month.</li>
+                <li>If you take more than two (2) days of leave in a month, salary will be deducted proportionally for each additional day.</li>
+                <li>Taking leave on the day immediately preceding or following a Company-granted day off will result in the intervening days being treated as unpaid leave, with corresponding salary deductions.</li>
+                <li>Two (2) late arrivals per month are permitted. A third late arrival will be counted as one day of absence and will be subject to deduction if applicable.</li>
+                <li>You must inform the Company in advance before taking any leave so that QA coverage may be temporarily reassigned to ensure uninterrupted service delivery.</li>
+            </ul>
+
+            <h3 style="font-size:12.5px;">4.4 Work-Life Balance</h3>
+            <p>We value you as a member of our team. The policy above is intended to keep service to our clients uninterrupted while still protecting your time away from work &mdash; your paid leave is yours to use, and if you choose not to use it, you are paid for it. Where our workload genuinely allows, we would rather give you the day off than have you sitting at a desk.</p>
 
             <h3>5. Notice Period</h3>
             <p>Should you wish to resign from your position, you are required to provide a minimum of fifteen (15) calendar days&rsquo; written notice to the Company. During the notice period, you must continue to perform your duties in full. Failure to serve the complete notice period may result in forfeiture of any outstanding salary or bonus payments for the notice period.</p>
