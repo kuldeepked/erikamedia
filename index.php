@@ -552,7 +552,7 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
                         <div class="form-group">
                             <label>Full Name *</label>
                             <input type="text" id="emp-name"
-                                   placeholder="e.g. Zunhara Jamil" autocomplete="off" required>
+                                   placeholder="e.g. Ayesha Khan" autocomplete="off" required>
                         </div>
                         <div class="form-group">
                             <label>Department *</label>

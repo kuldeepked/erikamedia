@@ -28,3 +28,7 @@ attendance.json
 # Live data — tracked historically, must never be committed or uploaded again.
 employees.json
 activity.json
+
+# Static mockup with real employee names and salary figures baked in.
+# Unreferenced by the app and not deployed. Kept on disk, never committed.
+mockups/
