@@ -16,6 +16,54 @@ function payrollReadJson(string $file): array {
     return file_exists($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
 }
 
+/**
+ * Net pay each employee was ACTUALLY paid for $month, read back from the
+ * payslip record written when the slip was generated.
+ *
+ * payrollRows() recomputes from live state. That is right for the preview but
+ * wrong for posting to Finances: generating a payslip writes the advance
+ * recovery, which zeroes the outstanding balance, so a later recompute returns
+ * a net higher by exactly the advance. Posting must match the document the
+ * employee was handed, so it reads the stored payslip instead of recomputing.
+ *
+ * History is newest-first, so the first record found for an employee is the
+ * most recent payslip for that month — which is the one that counts if a slip
+ * was regenerated.
+ *
+ * @return array<string, array{employee: string, net: int, generated_at: string}>
+ *         keyed by lowercased employee name.
+ */
+function payrollGeneratedNet(string $month): array {
+    $history = payrollReadJson(__DIR__ . '/history.json');
+    $out = [];
+
+    foreach ($history as $h) {
+        if (($h['type'] ?? '') !== 'payslip') continue;
+        if ((string) ($h['pay_period'] ?? '') !== $month) continue;
+
+        $name = trim((string) ($h['employee_name'] ?? ''));
+        if ($name === '') continue;
+
+        $key = strtolower($name);
+        if (isset($out[$key])) continue;   // keep the newest slip only
+
+        $earnings = (int) ($h['basic_salary'] ?? 0) + (int) ($h['allowance'] ?? 0)
+                  + (int) ($h['commission'] ?? 0)   + (int) ($h['performer_bonus'] ?? 0);
+
+        $deductions = (int) ($h['provident_fund'] ?? 0) + (int) ($h['eobi'] ?? 0)
+                    + (int) ($h['loan'] ?? 0)           + (int) ($h['professional_tax'] ?? 0)
+                    + (int) ($h['absent_late'] ?? 0)    + (int) ($h['penalty'] ?? 0);
+
+        $out[$key] = [
+            'employee'     => $name,
+            'net'          => $earnings - $deductions,
+            'generated_at' => (string) ($h['generated_at'] ?? ''),
+        ];
+    }
+
+    return $out;
+}
+
 function payrollRows(PDO $pdo, string $month): array {
     $employees = payrollReadJson(__DIR__ . '/employees.json');
     $activity  = payrollReadJson(__DIR__ . '/activity.json');

@@ -62,6 +62,10 @@ foreach ($pdo->query("SELECT id, linked_employee FROM categories
 }
 
 $res  = payrollRows($pdo, $month);
+// What the generated payslips actually paid. Posting uses THIS, not $r['net'],
+// because generating a slip zeroes the advance and a recompute would come back
+// higher by exactly the advance amount.
+$paid = payrollGeneratedNet($month);
 $date = date('Y-m-t', strtotime($month . '-01'));   // last day of the month
 $now  = date('c');
 
@@ -78,12 +82,21 @@ $ins = $pdo->prepare(
 );
 
 $posted = []; $skipped = []; $noCategory = []; $totalAmt = 0;
+$notGenerated = []; $zeroNet = [];
 
 $pdo->beginTransaction();
 try {
     foreach ($res['rows'] as $r) {
-        if ((int) $r['net'] <= 0) continue;
         $key = strtolower($r['employee']);
+
+        // Only post what a payslip actually paid. No slip for this employee
+        // this month means nothing was handed over, so nothing is booked.
+        if (!isset($paid[$key])) { $notGenerated[] = $r['employee']; continue; }
+        $net = (int) $paid[$key]['net'];
+
+        // Report these rather than dropping them silently — previously a
+        // non-positive net vanished from the response entirely.
+        if ($net <= 0) { $zeroNet[] = $r['employee']; continue; }
 
         $catId = $catByEmp[$key] ?? null;
         if (!$catId) { $noCategory[] = $r['employee']; continue; }
@@ -93,14 +106,14 @@ try {
 
         $txId = newId('tx');
         $ins->execute([
-            $txId, $date, $bookId, (int) $r['net'], $account['currency'],
+            $txId, $date, $bookId, $net, $account['currency'],
             $accountId, $catId, $r['employee'], 'Net salary ' . $month, $now, $now,
         ]);
         audit($pdo, 'created', 'transaction', $txId, null, [
-            'source' => 'payroll', 'employee' => $r['employee'], 'month' => $month, 'amount' => (int) $r['net'],
+            'source' => 'payroll', 'employee' => $r['employee'], 'month' => $month, 'amount' => $net,
         ]);
         $posted[]  = $r['employee'];
-        $totalAmt += (int) $r['net'];
+        $totalAmt += $net;
     }
     $pdo->commit();
 } catch (Throwable $e) {
@@ -109,11 +122,15 @@ try {
 }
 
 jsonResponse([
-    'success'      => true,
-    'month'        => $month,
-    'account'      => $account['name'],
-    'posted'       => $posted,
-    'skipped'      => $skipped,
-    'no_category'  => $noCategory,
-    'amount_total' => $totalAmt,
+    'success'       => true,
+    'month'         => $month,
+    'account'       => $account['name'],
+    'posted'        => $posted,
+    'skipped'       => $skipped,
+    'no_category'   => $noCategory,
+    // Employees deliberately not posted. Reported so the payroll runner can
+    // see them instead of silently wondering where someone went.
+    'not_generated' => $notGenerated,   // no payslip generated for this month
+    'zero_net'      => $zeroNet,        // payslip net was zero or negative
+    'amount_total'  => $totalAmt,
 ]);
