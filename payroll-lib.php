@@ -74,11 +74,25 @@ function payrollRows(PDO $pdo, string $month): array {
         $eobi       = max(0, (int) ($emp['eobi'] ?? 0));
         $tax        = max(0, (int) ($emp['professional_tax'] ?? 0));
         $penalty    = (int) $act['penalty'];
-        $loan       = max(0, (int) round($advLc[$key] ?? 0));
+        $outstanding = max(0, (int) round($advLc[$key] ?? 0));
         $absentLate = 0;
 
-        $earnings   = $basic + $allowance + $commission + $bonus;
-        $deductions = $pf + $eobi + $loan + $tax + $absentLate + $penalty;
+        $earnings = $basic + $allowance + $commission + $bonus;
+
+        // Statutory and disciplinary deductions come out first — these are not
+        // negotiable and are allowed to exceed earnings (that is a real
+        // situation the payroll runner needs to see, not hide).
+        $fixedDeductions = $pf + $eobi + $tax + $absentLate + $penalty;
+
+        // Salary-advance recovery is capped so it can never push net pay below
+        // zero. Recover at most whatever is left after the fixed deductions,
+        // and never more than the employee actually owes. Anything not
+        // recovered this month stays outstanding and is picked up next month,
+        // because the advance balance is derived from the ledger rather than
+        // stored per payslip.
+        $loan = max(0, min($outstanding, $earnings - $fixedDeductions));
+
+        $deductions = $fixedDeductions + $loan;
         $net        = $earnings - $deductions;
 
         $rows[] = [
@@ -89,6 +103,11 @@ function payrollRows(PDO $pdo, string $month): array {
             'commission'       => $commission,
             'bonus'            => $bonus,
             'loan'             => $loan,
+            // What the employee owed before this run, and what is left after
+            // the capped recovery above. carried_forward > 0 means the advance
+            // was only partly recovered this month.
+            'advance_outstanding'    => $outstanding,
+            'advance_carried_forward' => max(0, $outstanding - $loan),
             'provident_fund'   => $pf,
             'eobi'             => $eobi,
             'professional_tax' => $tax,
