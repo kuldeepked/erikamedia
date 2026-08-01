@@ -143,42 +143,54 @@ if ($loan > 0) {
         $advAcc->execute();
         $advRow = $advAcc->fetch();
 
-        $bankAcc = $pdo->prepare("SELECT id, currency FROM accounts WHERE LOWER(name) = 'hbl — erika media' OR LOWER(name) = 'hbl - erika media' LIMIT 1");
-        $bankAcc->execute();
-        $bankRow = $bankAcc->fetch();
-
         $bookStmt = $pdo->prepare("SELECT id FROM books WHERE LOWER(name) LIKE 'erika%' LIMIT 1");
         $bookStmt->execute();
         $bookRow = $bookStmt->fetch();
 
-        if ($advRow && $bankRow && $bookRow) {
-            $linkId = 'link_' . bin2hex(random_bytes(6));
-            $now    = date('c');
-            $insert = $pdo->prepare(
+        // The employee's salary expense category, so the recovered amount lands
+        // in the P&L alongside the rest of their pay. NULL is acceptable — the
+        // account balance is still right, the amount is just uncategorised.
+        $empName = trim($_POST['employee_name'] ?? '');
+        $catStmt = $pdo->prepare(
+            "SELECT id FROM categories
+             WHERE type = 'expense' AND archived = 0
+               AND LOWER(TRIM(linked_employee)) = LOWER(TRIM(?)) LIMIT 1"
+        );
+        $catStmt->execute([$empName]);
+        $catId = $catStmt->fetchColumn() ?: null;
+
+        // Date the recovery to the pay period it belongs to, not the day the
+        // slip happened to be printed — otherwise a July slip run on 3 August
+        // lands in August's P&L.
+        $recoveryDate = preg_match('/^\d{4}-\d{2}$/', (string) $pay_period_raw)
+            ? date('Y-m-t', strtotime($pay_period_raw . '-01'))
+            : date('Y-m-d');
+
+        if ($advRow && $bookRow) {
+            $now = date('c');
+            // Recovering an advance moves NO cash: the employee is simply paid
+            // less this month. It settles the receivable and turns that amount
+            // into salary cost. Recording it as a transfer into the bank (as
+            // this once did) invented money that never arrived and left the
+            // bank balance overstated by the advance on every recovery.
+            //
+            // One expense against Employee Advances does both: it draws the
+            // account down by $loan and books $loan of salary expense.
+            // A single row is also atomic — the old two-row pair could leave a
+            // half-written transfer if the second insert failed.
+            $pdo->prepare(
                 'INSERT INTO transactions
                     (id, date, book_id, type, amount, currency, account_id, category_id,
-                     counterparty, description, linked_tx_id, void, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, ?, ?)'
-            );
-            // Out from Employee Advances
-            $insert->execute([
+                     counterparty, description, void, created_at, updated_at)
+                 VALUES (?, ?, ?, "expense", ?, ?, ?, ?, ?, ?, 0, ?, ?)'
+            )->execute([
                 'tx_' . bin2hex(random_bytes(6)),
-                date('Y-m-d'),
-                $bookRow['id'], 'transfer_out', $loan,
-                $advRow['currency'], $advRow['id'],
-                trim($_POST['employee_name'] ?? ''),
+                $recoveryDate,
+                $bookRow['id'], $loan,
+                $advRow['currency'], $advRow['id'], $catId,
+                $empName,
                 'Auto: advance recovery on payslip ' . $pay_period_raw,
-                $linkId, $now, $now,
-            ]);
-            // In to HBL — Erika Media
-            $insert->execute([
-                'tx_' . bin2hex(random_bytes(6)),
-                date('Y-m-d'),
-                $bookRow['id'], 'transfer_in', $loan,
-                $bankRow['currency'], $bankRow['id'],
-                trim($_POST['employee_name'] ?? ''),
-                'Auto: advance recovery on payslip ' . $pay_period_raw,
-                $linkId, $now, $now,
+                $now, $now,
             ]);
         }
     } catch (Throwable $e) {
