@@ -47,7 +47,12 @@ $errors  = [];
 echo "Erika Media backup — {$stamp}\n";
 echo str_repeat('=', 52) . "\n\n";
 
-if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
+// 0755, not 0700: the IONOS Webspace Explorer cannot list a directory with
+// restrictive permissions, and backups you cannot see are backups you cannot
+// download for off-site safety. This does NOT expose them to the web —
+// .htaccess 404s the whole db/ path and denies .sqlite/.json by extension
+// regardless of filesystem permissions.
+if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
     http_response_code(500);
     echo "FATAL: cannot create {$dir}\n";
     echo "Check that db/ is writable by PHP.\n";
