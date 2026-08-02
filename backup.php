@@ -59,6 +59,12 @@ if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
     exit;
 }
 
+// Repair permissions on directories created by an earlier run (mkdir above is
+// skipped once they exist, so a previously restrictive mode would persist and
+// keep the snapshots hidden from the file manager).
+@chmod(BACKUP_ROOT, 0755);
+@chmod($dir, 0755);
+
 // ── 1. SQLite ledger ──────────────────────────────────────────────────────
 $sqliteOut = $dir . '/erika.sqlite';
 try {
