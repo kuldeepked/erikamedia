@@ -1455,18 +1455,35 @@ var INTERVIEW_RATE = <?= INTERVIEW_RATE ?>;
 // handlers; only where it sits on the page changes, and the page underneath
 // never scrolls.
 
-var _modal = { cardId: null, placeholder: null, prevDisplay: '', marked: null };
+var _modal = { cardId: null, placeholder: null, prevDisplay: '', marked: null, scrollY: 0 };
+
+function pageScrollY() {
+    return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+}
 
 function openCardModal(cardId, markEl) {
     var card = document.getElementById(cardId);
     if (!card) return;
     closeCardModal();
 
+    var y = pageScrollY();
+
     // Remember the exact spot so the card goes back where it belongs. The Team
     // form is visible inline for "add", so its previous display has to be
     // restored too rather than assumed to be "none".
+    //
+    // The placeholder also holds the height the card was occupying. Saving
+    // rebuilds the list behind the dialog while the form is still lifted out
+    // of the page; without this the document is briefly shorter than the
+    // scroll offset and the browser clamps it to the top, which is exactly the
+    // jump the dialog exists to avoid.
     var ph = document.createElement('div');
-    ph.style.display = 'none';
+    var h  = card.offsetHeight || 0;
+    if (h > 0) {
+        ph.style.height = h + 'px';
+    } else {
+        ph.style.display = 'none';
+    }
     card.parentNode.insertBefore(ph, card);
 
     _modal = {
@@ -1474,15 +1491,14 @@ function openCardModal(cardId, markEl) {
         placeholder: ph,
         prevDisplay: card.style.display,
         marked: markEl || null,
+        scrollY: y,
     };
 
     document.getElementById('modal-shell').appendChild(card);
     card.style.display = 'block';
     if (markEl) markEl.classList.add('row-editing');
 
-    var backdrop = document.getElementById('modal-backdrop');
-    backdrop.classList.add('open');
-    document.body.style.overflow = 'hidden';
+    document.getElementById('modal-backdrop').classList.add('open');
 
     var first = card.querySelector('input:not([type=hidden]):not([disabled]), select, textarea');
     if (first) setTimeout(function () { try { first.focus(); } catch (e) {} }, 60);
@@ -1492,6 +1508,7 @@ function closeCardModal() {
     if (!_modal.cardId) return;
     var card = document.getElementById(_modal.cardId);
     var ph   = _modal.placeholder;
+    var y    = _modal.scrollY;
     if (card && ph && ph.parentNode) {
         ph.parentNode.insertBefore(card, ph);
         ph.parentNode.removeChild(ph);
@@ -1500,8 +1517,38 @@ function closeCardModal() {
     if (_modal.marked) _modal.marked.classList.remove('row-editing');
 
     document.getElementById('modal-backdrop').classList.remove('open');
-    document.body.style.overflow = '';
-    _modal = { cardId: null, placeholder: null, prevDisplay: '', marked: null };
+    _modal = { cardId: null, placeholder: null, prevDisplay: '', marked: null, scrollY: 0 };
+
+    restorePageScroll(y);
+}
+
+// A backstop for the same problem the placeholder height solves. Some save
+// handlers re-render their list a frame or two after the dialog closes, and a
+// list that shrinks — deleting a row, or a filter narrowing the results — can
+// still leave the document shorter than where the reader was standing.
+//
+// It gives up the moment the reader scrolls themselves: being dragged back to
+// a remembered position while deliberately scrolling away is worse than the
+// jump this is correcting.
+function restorePageScroll(y) {
+    if (!y || Math.abs(pageScrollY() - y) < 2) return;
+
+    var cancelled = false;
+    var giveUp = function () { cancelled = true; };
+    window.addEventListener('wheel', giveUp, { passive: true });
+    window.addEventListener('touchstart', giveUp, { passive: true });
+
+    var frames = 0;
+    (function put() {
+        if (cancelled) { done(); return; }
+        if (pageScrollY() !== y) window.scrollTo(0, y);
+        if (++frames < 6) requestAnimationFrame(put); else done();
+    })();
+
+    function done() {
+        window.removeEventListener('wheel', giveUp);
+        window.removeEventListener('touchstart', giveUp);
+    }
 }
 
 function modalIsOpen() { return !!_modal.cardId; }

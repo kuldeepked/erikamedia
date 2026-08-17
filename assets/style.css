@@ -1802,6 +1802,11 @@ input.form-control {
     backdrop-filter: blur(2px);
     padding: 40px 20px;
     overflow-y: auto;
+    /* The page behind is not locked with body{overflow:hidden} — in this flex
+       layout that removes the page scrollbar and the browser can drop the
+       scroll position with it, which is the jump the dialog exists to avoid.
+       Containing the overscroll stops the wheel reaching the page instead. */
+    overscroll-behavior: contain;
     animation: modalIn 0.14s ease;
 }
 .modal-backdrop.open { display: block; }
