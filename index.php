@@ -442,8 +442,10 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
             <div class="card">
                 <div class="card-title">Document History</div>
                 <div class="card-subtitle">
-                    Every generated payslip and offer letter is saved here.
-                    Click <strong>Open</strong> to instantly regenerate it in a new tab.
+                    Every payslip, offer letter and invoice you have generated.
+                    <strong>Open</strong> reprints a document as it was issued;
+                    <strong>Edit &amp; re-issue</strong> loads an invoice back into the form so
+                    it can be corrected and printed again under the same number.
                 </div>
                 <div id="history-list"><p class="emp-empty">Loading&hellip;</p></div>
             </div>
@@ -1155,7 +1157,9 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
         <div id="tab-invoice" class="tab-content">
             <div class="card">
                 <div class="card-title">Create Invoice</div>
-                <div class="card-subtitle">Bill a client — fill in the details and line items, then Generate to open a print-ready invoice in a new tab.</div>
+                <div class="card-subtitle">Bill a client — fill in the details and line items, then Generate to open a print-ready invoice in a new tab. Every invoice is kept under Document History, where it can be reopened and corrected.</div>
+
+                <div id="invoice-edit-note" class="team-alert" style="display:none;"></div>
 
                 <form action="generate-invoice.php" method="POST" target="_blank" onsubmit="return invoiceBeforeSubmit()">
                     <input type="hidden" name="_csrf" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES) ?>">
@@ -2448,6 +2452,10 @@ function recalcInvoice() {
 }
 
 function initInvoiceTab() {
+    // editInvoice() switches tabs first and sets this afterwards, so clearing
+    // it here only affects arriving at the tab under your own steam.
+    var note = document.getElementById('invoice-edit-note');
+    if (note) note.style.display = 'none';
     if (!document.querySelectorAll('#invoice-items .invoice-row').length) {
         addInvoiceItem();
         addInvoiceItem();
@@ -3052,46 +3060,129 @@ function fmtMonth(ym) {
 }
 
 // ── History ───────────────────────────────────────────────────────────────
+// Invoices live in their own file and were never shown here, so every invoice
+// raised was recorded on the server and invisible from the dashboard. Both
+// sources are loaded and merged into one list, newest first.
 function loadHistoryTab() {
     document.getElementById('history-list').innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
-    fetch('history-api.php')
-        .then(function(r) { return r.json(); })
-        .then(function(data) { renderHistory(data); })
-        .catch(function() {
-            document.getElementById('history-list').innerHTML =
-                '<p class="emp-empty">Could not load history.</p>';
-        });
+    Promise.all([
+        fetch('history-api.php').then(function (r) { return r.json(); })
+            .catch(function () { return []; }),
+        fetch('invoices-api.php').then(function (r) { return r.json(); })
+            .catch(function () { return { invoices: [] }; }),
+    ]).then(function (res) {
+        renderHistory(res[0] || [], (res[1] && res[1].invoices) || [], (res[1] && res[1].duplicates) || []);
+    }).catch(function () {
+        document.getElementById('history-list').innerHTML =
+            '<p class="emp-empty">Could not load history.</p>';
+    });
 }
 
 var _histRecords = [];
+var _invoices    = [];
+var _histFilter  = 'all';
 
-function renderHistory(records) {
-    _histRecords = records || [];
+function historyFilter(kind) {
+    _histFilter = kind;
+    renderHistory(_histRecords, _invoices, _histDuplicates);
+}
+
+var _histDuplicates = [];
+
+function renderHistory(records, invoices, duplicates) {
+    _histRecords    = records  || [];
+    _invoices       = invoices || [];
+    _histDuplicates = duplicates || [];
+
     var el = document.getElementById('history-list');
-    if (!records || records.length === 0) {
-        el.innerHTML = '<p class="emp-empty">No documents generated yet. Generate a payslip or offer letter to see it here.</p>';
+
+    // One shape for both sources so the table does not care where a row came from.
+    var rows = [];
+    _histRecords.forEach(function (r) {
+        rows.push({
+            kind:  r.type === 'payslip' ? 'payslip' : 'offer',
+            id:    r.id,
+            who:   r.employee_name || '',
+            when:  r.type === 'payslip' ? fmtMonth(r.pay_period) : (r.letter_date || ''),
+            at:    r.generated_at || '',
+            amount: '',
+        });
+    });
+    _invoices.forEach(function (v) {
+        rows.push({
+            kind:   'invoice',
+            id:     v.id,
+            who:    v.client_name || '',
+            when:   v.issue_date || '',
+            at:     v.generated_at || '',
+            amount: (v.currency || '') + ' ' + numFmt(v.total || 0),
+            no:     v.invoice_no || '',
+            amended: !!v.amended,
+        });
+    });
+
+    rows.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+    var shown = _histFilter === 'all' ? rows : rows.filter(function (r) { return r.kind === _histFilter; });
+
+    var counts = { all: rows.length, payslip: 0, offer: 0, invoice: 0 };
+    rows.forEach(function (r) { counts[r.kind]++; });
+
+    var tabs = [['all', 'Everything'], ['invoice', 'Invoices'], ['payslip', 'Payslips'], ['offer', 'Offer letters']];
+    var html = '<div class="range-presets" style="margin-bottom:16px;">'
+             + tabs.map(function (t) {
+                   return '<button type="button" class="range-preset' + (_histFilter === t[0] ? ' active' : '')
+                        + '" onclick="historyFilter(\'' + t[0] + '\')">' + esc(t[1])
+                        + ' (' + counts[t[0]] + ')</button>';
+               }).join('')
+             + '</div>';
+
+    if (_histDuplicates.length) {
+        html += '<div class="health-item sev-warning"><div class="health-head">'
+              + '<span class="health-title">Two records share the same invoice number</span></div>'
+              + '<div class="health-detail">' + esc(_histDuplicates.join(', '))
+              + '. These were raised before re-issuing replaced the earlier version, so the older '
+              + 'copy is still here. Delete whichever one the client does not hold.</div></div>';
+    }
+
+    if (!shown.length) {
+        html += '<p class="emp-empty">Nothing here yet.</p>';
+        el.innerHTML = html;
         return;
     }
-    var html = '<table class="emp-table">'
-             + '<thead><tr><th>Type</th><th>Employee</th><th>Period / Date</th><th>Generated</th><th></th></tr></thead>'
-             + '<tbody>';
-    records.forEach(function(r) {
-        var badge = r.type === 'payslip'
-            ? '<span class="doc-badge badge-payslip">Payslip</span>'
-            : '<span class="doc-badge badge-offer">Offer Letter</span>';
-        var period = r.type === 'payslip' ? fmtMonth(r.pay_period) : (r.letter_date || '');
+
+    var badges = {
+        payslip: '<span class="doc-badge badge-payslip">Payslip</span>',
+        offer:   '<span class="doc-badge badge-offer">Offer Letter</span>',
+        invoice: '<span class="doc-badge badge-interview">Invoice</span>',
+    };
+
+    html += '<table class="emp-table">'
+          + '<thead><tr><th>Type</th><th>Client / Employee</th><th>Reference</th>'
+          + '<th>Date</th><th style="text-align:right">Amount</th><th>Generated</th><th></th></tr></thead><tbody>';
+
+    shown.forEach(function (r) {
+        var actions;
+        if (r.kind === 'invoice') {
+            actions = '<button class="btn-edit" data-id="' + esc(r.id) + '" onclick="editInvoice(this.dataset.id)">Edit &amp; re-issue</button>'
+                    + '<button class="btn-delete" data-id="' + esc(r.id) + '" onclick="deleteInvoice(this.dataset.id)">Delete</button>';
+        } else {
+            actions = '<a href="regenerate.php?id=' + encodeURIComponent(r.id) + '" target="_blank" class="btn-regen">Open</a>'
+                    + (r.kind === 'payslip'
+                        ? '<button class="btn-edit" data-id="' + esc(r.id) + '" onclick="editPayslip(this.dataset.id)">Edit</button>' : '')
+                    + '<button class="btn-delete" data-id="' + esc(r.id) + '" onclick="deleteHistory(this.dataset.id)">Delete</button>';
+        }
         html += '<tr>'
-              + '<td>' + badge + '</td>'
-              + '<td>' + esc(r.employee_name || '') + '</td>'
-              + '<td>' + esc(period) + '</td>'
-              + '<td>' + esc(r.generated_at || '') + '</td>'
-              + '<td style="white-space:nowrap">'
-              + '<a href="regenerate.php?id=' + encodeURIComponent(r.id) + '" target="_blank" class="btn-regen">Open</a>'
-              + (r.type === 'payslip' ? '<button class="btn-edit" data-id="' + esc(r.id) + '" onclick="editPayslip(this.dataset.id)">Edit</button>' : '')
-              + '<button class="btn-delete" data-id="' + esc(r.id) + '" onclick="deleteHistory(this.dataset.id)">Delete</button>'
-              + '</td>'
+              + '<td>' + badges[r.kind] + '</td>'
+              + '<td>' + esc(r.who) + '</td>'
+              + '<td>' + esc(r.no || '—')
+              + (r.amended ? ' <span class="status-pill status-pending">amended</span>' : '') + '</td>'
+              + '<td>' + esc(r.when) + '</td>'
+              + '<td style="text-align:right;white-space:nowrap">' + esc(r.amount || '—') + '</td>'
+              + '<td>' + esc(r.at) + '</td>'
+              + '<td style="white-space:nowrap">' + actions + '</td>'
               + '</tr>';
     });
+
     html += '</tbody></table>';
     el.innerHTML = html;
 }
@@ -3101,6 +3192,63 @@ function deleteHistory(id) {
     apiPost('history-api.php', { action: 'delete', id: id })
         .then(function() { loadHistoryTab(); })
         .catch(function() { alert('Could not delete. Please try again.'); });
+}
+
+function deleteInvoice(id) {
+    var v = _invoices.find(function (x) { return x.id === id; });
+    if (!confirm('Delete invoice ' + (v ? v.invoice_no : id) + ' from the list?\n\n'
+        + 'This only removes the record here. It does not unbill the client, and any payment '
+        + 'already recorded in Finances stays where it is.')) return;
+    apiPost('invoices-api.php', { action: 'delete', id: id })
+        .then(function (d) {
+            if (d.error) { alert(d.error); return; }
+            loadHistoryTab();
+        })
+        .catch(function () { alert('Could not delete. Please try again.'); });
+}
+
+// Load a saved invoice back into the form. Keeping the same number means
+// printing again replaces the stored record rather than leaving two documents
+// claiming to be the same invoice.
+function editInvoice(id) {
+    var v = _invoices.find(function (x) { return x.id === id; });
+    if (!v) return;
+
+    showTab('invoice', document.getElementById('nav-invoice'));
+
+    var form = document.querySelector('#tab-invoice form');
+    var set  = function (name, value) {
+        var f = form.querySelector('[name="' + name + '"]');
+        if (f) f.value = value == null ? '' : value;
+    };
+    set('client_name',    v.client_name);
+    set('client_email',   v.client_email);
+    set('client_address', v.client_address);
+    set('invoice_no',     v.invoice_no);
+    set('issue_date',     v.issue_date);
+    set('due_date',       v.due_date);
+    set('currency',       v.currency);
+    set('tax_percent',    v.tax_percent);
+    set('notes',          v.notes);
+
+    var wrap = document.getElementById('invoice-items');
+    wrap.innerHTML = '';
+    (v.items || []).forEach(function (it) {
+        addInvoiceItem(it.qty, it.price);
+        var rows = wrap.querySelectorAll('.invoice-row');
+        var row  = rows[rows.length - 1];
+        row.querySelector('[name="item_desc[]"]').value = it.desc || '';
+    });
+    if (!(v.items || []).length) { addInvoiceItem(); addInvoiceItem(); }
+    recalcInvoice();
+
+    var note = document.getElementById('invoice-edit-note');
+    if (note) {
+        note.style.display = 'block';
+        note.innerHTML = 'Editing <strong>' + esc(v.invoice_no) + '</strong> for '
+                       + esc(v.client_name) + '. Generating replaces the saved copy — '
+                       + 'change the invoice number above if you meant to raise a new one instead.';
+    }
 }
 
 function editPayslip(id) {

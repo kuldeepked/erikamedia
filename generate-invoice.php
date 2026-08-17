@@ -62,21 +62,63 @@ function qtyFmt(float $v): string {
 }
 
 // ── Save a record (numbering + history of billed invoices) ────────────────
+//
+// Re-issuing an invoice REPLACES the record carrying that number rather than
+// adding a second one. Correcting a typo and printing again is the normal way
+// to amend an invoice, and appending left two rows claiming to be the same
+// document with different totals — with nothing to say which one the client
+// actually holds. The number is the identity; the newest version wins.
+//
+// client_email, client_address and notes are stored so the form can be filled
+// back in from a saved invoice. Without them, editing one silently dropped
+// whatever was typed into those fields the first time.
 $invFile = __DIR__ . '/invoices.json';
 $inv = file_exists($invFile) ? (json_decode((string) file_get_contents($invFile), true) ?: []) : [];
-array_unshift($inv, [
-    'invoice_no'   => $invoice_no,
-    'client_name'  => trim((string) ($_POST['client_name'] ?? '')),
-    'issue_date'   => $issue_raw,
-    'due_date'     => $_POST['due_date'] ?? '',
-    'currency'     => $currency,
-    'subtotal'     => round($subtotal, 2),
-    'tax_percent'  => $tax_percent,
-    'tax'          => round($tax, 2),
-    'total'        => round($total, 2),
-    'items'        => $items,
-    'generated_at' => date('Y-m-d H:i:s'),
-]);
+
+$record = [
+    'id'             => 'inv_' . substr(sha1($invoice_no), 0, 12),
+    'invoice_no'     => $invoice_no,
+    'client_name'    => trim((string) ($_POST['client_name'] ?? '')),
+    'client_email'   => trim((string) ($_POST['client_email'] ?? '')),
+    'client_address' => $client_address,
+    'notes'          => $notes,
+    'issue_date'     => $issue_raw,
+    'due_date'       => $_POST['due_date'] ?? '',
+    'currency'       => $currency,
+    'subtotal'       => round($subtotal, 2),
+    'tax_percent'    => $tax_percent,
+    'tax'            => round($tax, 2),
+    'total'          => round($total, 2),
+    'items'          => $items,
+    'generated_at'   => date('Y-m-d H:i:s'),
+];
+
+// Collapse every record carrying this number, not just the first. Some numbers
+// were issued twice before this replaced rather than appended, and amending one
+// copy while leaving its stale twin behind would keep the contradiction alive
+// in the one place it is supposed to be resolved. Whatever was just printed is
+// the invoice; earlier versions of it are superseded by definition.
+$position   = null;
+$firstIssued = '';
+$kept        = [];
+foreach ($inv as $existing) {
+    if (trim((string) ($existing['invoice_no'] ?? '')) === $invoice_no) {
+        if ($position === null) $position = count($kept);
+        $was = (string) ($existing['first_issued_at'] ?? ($existing['generated_at'] ?? ''));
+        if ($was !== '' && ($firstIssued === '' || $was < $firstIssued)) $firstIssued = $was;
+        continue;
+    }
+    $kept[] = $existing;
+}
+
+$record['first_issued_at'] = $firstIssued !== '' ? $firstIssued : $record['generated_at'];
+if ($position === null) {
+    array_unshift($kept, $record);          // a new invoice goes to the top
+} else {
+    array_splice($kept, $position, 0, [$record]);   // an amendment stays in place
+}
+$inv = $kept;
+
 if (count($inv) > 500) $inv = array_slice($inv, 0, 500);
 file_put_contents($invFile, json_encode($inv, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 ?>
