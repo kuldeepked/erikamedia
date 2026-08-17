@@ -1163,6 +1163,9 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
 
                 <form action="generate-invoice.php" method="POST" target="_blank" onsubmit="return invoiceBeforeSubmit()">
                     <input type="hidden" name="_csrf" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES) ?>">
+                    <!-- Set only when amending an existing invoice, so the save
+                         replaces that one record instead of guessing by number. -->
+                    <input type="hidden" name="edit_id" id="invoice-edit-id" value="">
 
                     <div class="section-label">Bill To</div>
                     <div class="form-grid">
@@ -2456,6 +2459,8 @@ function initInvoiceTab() {
     // it here only affects arriving at the tab under your own steam.
     var note = document.getElementById('invoice-edit-note');
     if (note) note.style.display = 'none';
+    var editIdField = document.getElementById('invoice-edit-id');
+    if (editIdField) editIdField.value = '';
     if (!document.querySelectorAll('#invoice-items .invoice-row').length) {
         addInvoiceItem();
         addInvoiceItem();
@@ -3071,7 +3076,8 @@ function loadHistoryTab() {
         fetch('invoices-api.php').then(function (r) { return r.json(); })
             .catch(function () { return { invoices: [] }; }),
     ]).then(function (res) {
-        renderHistory(res[0] || [], (res[1] && res[1].invoices) || [], (res[1] && res[1].duplicates) || []);
+        renderHistory(res[0] || [], (res[1] && res[1].invoices) || [],
+                      (res[1] && res[1].duplicates) || [], (res[1] && res[1].duplicate_counts) || {});
     }).catch(function () {
         document.getElementById('history-list').innerHTML =
             '<p class="emp-empty">Could not load history.</p>';
@@ -3084,15 +3090,17 @@ var _histFilter  = 'all';
 
 function historyFilter(kind) {
     _histFilter = kind;
-    renderHistory(_histRecords, _invoices, _histDuplicates);
+    renderHistory(_histRecords, _invoices, _histDuplicates, _histDupCounts);
 }
 
 var _histDuplicates = [];
+var _histDupCounts  = {};
 
-function renderHistory(records, invoices, duplicates) {
+function renderHistory(records, invoices, duplicates, dupCounts) {
     _histRecords    = records  || [];
     _invoices       = invoices || [];
     _histDuplicates = duplicates || [];
+    _histDupCounts  = dupCounts || _histDupCounts || {};
 
     var el = document.getElementById('history-list');
 
@@ -3118,6 +3126,7 @@ function renderHistory(records, invoices, duplicates) {
             amount: (v.currency || '') + ' ' + numFmt(v.total || 0),
             no:     v.invoice_no || '',
             amended: !!v.amended,
+            dup:    (_histDupCounts[v.invoice_no] || 0),
         });
     });
 
@@ -3138,10 +3147,14 @@ function renderHistory(records, invoices, duplicates) {
 
     if (_histDuplicates.length) {
         html += '<div class="health-item sev-warning"><div class="health-head">'
-              + '<span class="health-title">Two records share the same invoice number</span></div>'
+              + '<span class="health-title">' + _histDuplicates.length
+              + ' invoice number' + (_histDuplicates.length === 1 ? ' is' : 's are') + ' used more than once</span></div>'
               + '<div class="health-detail">' + esc(_histDuplicates.join(', '))
-              + '. These were raised before re-issuing replaced the earlier version, so the older '
-              + 'copy is still here. Delete whichever one the client does not hold.</div></div>';
+              + '.<br>Some are the same invoice printed twice; others are different invoices that were '
+              + 'given a number already in use — <strong>EM-2026-005 covers two different clients</strong>. '
+              + 'Editing acts on the exact row you clicked, so nothing is at risk, but a client holding a '
+              + 'document whose number belongs to another client too is worth sorting out. '
+              + 'Delete the stale copies, or re-issue one under a fresh number.</div></div>';
     }
 
     if (!shown.length) {
@@ -3175,7 +3188,9 @@ function renderHistory(records, invoices, duplicates) {
               + '<td>' + badges[r.kind] + '</td>'
               + '<td>' + esc(r.who) + '</td>'
               + '<td>' + esc(r.no || '—')
-              + (r.amended ? ' <span class="status-pill status-pending">amended</span>' : '') + '</td>'
+              + (r.amended ? ' <span class="status-pill status-pending">amended</span>' : '')
+              + (r.dup ? ' <span class="status-pill status-voided" title="This number is used by '
+                       + r.dup + ' invoices">×' + r.dup + '</span>' : '') + '</td>'
               + '<td>' + esc(r.when) + '</td>'
               + '<td style="text-align:right;white-space:nowrap">' + esc(r.amount || '—') + '</td>'
               + '<td>' + esc(r.at) + '</td>'
@@ -3221,6 +3236,9 @@ function editInvoice(id) {
         var f = form.querySelector('[name="' + name + '"]');
         if (f) f.value = value == null ? '' : value;
     };
+    var editIdField = document.getElementById('invoice-edit-id');
+    if (editIdField) editIdField.value = v.id;
+
     set('client_name',    v.client_name);
     set('client_email',   v.client_email);
     set('client_address', v.client_address);
@@ -3245,9 +3263,11 @@ function editInvoice(id) {
     var note = document.getElementById('invoice-edit-note');
     if (note) {
         note.style.display = 'block';
-        note.innerHTML = 'Editing <strong>' + esc(v.invoice_no) + '</strong> for '
-                       + esc(v.client_name) + '. Generating replaces the saved copy — '
-                       + 'change the invoice number above if you meant to raise a new one instead.';
+        note.innerHTML = 'Amending <strong>' + esc(v.invoice_no) + '</strong> for '
+                       + esc(v.client_name) + ' &mdash; ' + esc(v.currency || '') + ' ' + numFmt(v.total || 0)
+                       + ', issued ' + esc(v.issue_date || '') + '.<br>'
+                       + 'Generating replaces <em>this</em> invoice. To raise a separate one instead, '
+                       + 'go to Invoice from the sidebar so you start on a blank form.';
     }
 }
 

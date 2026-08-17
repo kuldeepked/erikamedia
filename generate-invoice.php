@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/invoice-lib.php';
 requireLogin();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -63,20 +64,12 @@ function qtyFmt(float $v): string {
 
 // ── Save a record (numbering + history of billed invoices) ────────────────
 //
-// Re-issuing an invoice REPLACES the record carrying that number rather than
-// adding a second one. Correcting a typo and printing again is the normal way
-// to amend an invoice, and appending left two rows claiming to be the same
-// document with different totals — with nothing to say which one the client
-// actually holds. The number is the identity; the newest version wins.
-//
 // client_email, client_address and notes are stored so the form can be filled
 // back in from a saved invoice. Without them, editing one silently dropped
 // whatever was typed into those fields the first time.
-$invFile = __DIR__ . '/invoices.json';
-$inv = file_exists($invFile) ? (json_decode((string) file_get_contents($invFile), true) ?: []) : [];
+$inv = invoicesLoad();
 
 $record = [
-    'id'             => 'inv_' . substr(sha1($invoice_no), 0, 12),
     'invoice_no'     => $invoice_no,
     'client_name'    => trim((string) ($_POST['client_name'] ?? '')),
     'client_email'   => trim((string) ($_POST['client_email'] ?? '')),
@@ -93,34 +86,38 @@ $record = [
     'generated_at'   => date('Y-m-d H:i:s'),
 ];
 
-// Collapse every record carrying this number, not just the first. Some numbers
-// were issued twice before this replaced rather than appended, and amending one
-// copy while leaving its stale twin behind would keep the contradiction alive
-// in the one place it is supposed to be resolved. Whatever was just printed is
-// the invoice; earlier versions of it are superseded by definition.
-$position   = null;
-$firstIssued = '';
-$kept        = [];
-foreach ($inv as $existing) {
-    if (trim((string) ($existing['invoice_no'] ?? '')) === $invoice_no) {
-        if ($position === null) $position = count($kept);
+// Amending replaces the ONE record that was opened for editing, identified by
+// the id the Edit button passed through.
+//
+// An earlier version matched on the invoice number instead, which is wrong in
+// both directions here: eight numbers in this file are used more than once, and
+// EM-2026-005 belongs to two different clients. Matching by number would have
+// overwritten a real invoice to a real customer with somebody else's.
+//
+// Without an edit id this is a new document and is appended. Reusing a number
+// by hand is not treated as an amendment — it is far more likely a numbering
+// slip, and the Document History screen flags it rather than acting on it.
+$editId   = trim((string) ($_POST['edit_id'] ?? ''));
+$replaced = false;
+
+if ($editId !== '') {
+    foreach ($inv as $i => $existing) {
+        if (invoiceRecordId($existing) !== $editId) continue;
         $was = (string) ($existing['first_issued_at'] ?? ($existing['generated_at'] ?? ''));
-        if ($was !== '' && ($firstIssued === '' || $was < $firstIssued)) $firstIssued = $was;
-        continue;
+        $record['first_issued_at'] = $was !== '' ? $was : $record['generated_at'];
+        $inv[$i]  = $record;      // stays where it was in the list
+        $replaced = true;
+        break;
     }
-    $kept[] = $existing;
 }
 
-$record['first_issued_at'] = $firstIssued !== '' ? $firstIssued : $record['generated_at'];
-if ($position === null) {
-    array_unshift($kept, $record);          // a new invoice goes to the top
-} else {
-    array_splice($kept, $position, 0, [$record]);   // an amendment stays in place
+if (!$replaced) {
+    $record['first_issued_at'] = $record['generated_at'];
+    array_unshift($inv, $record);
 }
-$inv = $kept;
 
 if (count($inv) > 500) $inv = array_slice($inv, 0, 500);
-file_put_contents($invFile, json_encode($inv, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+invoicesSave($inv);
 ?>
 <!DOCTYPE html>
 <html lang="en">
