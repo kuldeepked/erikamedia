@@ -1,11 +1,19 @@
 <?php
-// Post salaries to Finances. For the chosen month + source account, writes one
-// expense transaction per employee (their net pay) into that employee's linked
-// salary category, in the Erika (business) book.
+// Post issued payslips to Finances.
 //
-// Idempotent: skips any employee who already has a salary expense in their
-// salary category for that month. Employees with no linked salary category are
-// reported back (create them in Finance Setup → "sync salary categories").
+// This is now a catch-up button, not the main path: generating a payslip books
+// it. What is left for this endpoint is slips that were saved without posting
+// (autopost switched off, or a posting that failed on a bad account) and the
+// historical slips the migration imported without matching ledger rows.
+//
+// It no longer computes anything. It finds the unposted live slips for the
+// month or range and hands each to postPayslip(), which is idempotent through
+// transactions.source_ref — so pressing this twice cannot double-book, and it
+// no longer has to guess at duplicates by counterparty + category + month.
+//
+// `no_category` is gone: ensureSalaryCategory() creates the employee's salary
+// category on demand rather than reporting a piece of setup nobody was told to
+// do and silently skipping a real salary.
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
@@ -26,111 +34,106 @@ if ($action !== 'post') {
     jsonError('Invalid action.');
 }
 
+// One month or a span. `month` is what the existing payroll screen sends.
 $month = trim((string) ($input['month'] ?? ''));
-if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
-    jsonError('A valid month (YYYY-MM) is required.');
+$from  = trim((string) ($input['from_period'] ?? ''));
+$to    = trim((string) ($input['to_period']   ?? ''));
+
+if (isMonth($month)) {
+    $from = $to = $month;
+} elseif (isMonth($from) || isMonth($to)) {
+    [$from, $to] = payrollNormalisePeriods($from, $to);
+    $month = null;
+} else {
+    jsonError('A valid month (YYYY-MM), or from_period and to_period, is required.');
 }
+
 $accountId = trim((string) ($input['account_id'] ?? ''));
-if ($accountId === '') {
-    jsonError('Pick a source account to pay salaries from.');
-}
-
-// Validate the source account.
-$accStmt = $pdo->prepare("SELECT id, currency, name FROM accounts WHERE id = ? AND archived = 0");
-$accStmt->execute([$accountId]);
-$account = $accStmt->fetch();
-if (!$account) {
-    jsonError('That source account was not found.');
-}
-
-// Resolve the Erika business book.
-$bookRow = $pdo->query("SELECT id FROM books WHERE LOWER(name) LIKE 'erika%' ORDER BY display_order LIMIT 1")->fetch();
-$bookId  = $bookRow['id'] ?? null;
-if (!$bookId) {
-    $biz = bizBookIds($pdo);
-    $bookId = $biz[0] ?? null;
-}
-if (!$bookId) {
-    jsonError('No business book found to post salaries into.');
-}
-
-// Map each employee (lowercased) → their linked salary expense category.
-$catByEmp = [];
-foreach ($pdo->query("SELECT id, linked_employee FROM categories
-                      WHERE type = 'expense' AND linked_employee <> '' AND archived = 0")->fetchAll() as $c) {
-    $catByEmp[strtolower(trim((string) $c['linked_employee']))] = $c['id'];
-}
-
-$res  = payrollRows($pdo, $month);
-// What the generated payslips actually paid. Posting uses THIS, not $r['net'],
-// because generating a slip zeroes the advance and a recompute would come back
-// higher by exactly the advance amount.
-$paid = payrollGeneratedNet($month);
-$date = date('Y-m-t', strtotime($month . '-01'));   // last day of the month
-$now  = date('c');
-
-$dupStmt = $pdo->prepare(
-    "SELECT 1 FROM transactions
-     WHERE void = 0 AND type = 'expense' AND counterparty = ? AND category_id = ?
-       AND substr(date, 1, 7) = ? LIMIT 1"
-);
-$ins = $pdo->prepare(
-    'INSERT INTO transactions
-        (id, date, book_id, type, amount, currency, account_id, category_id,
-         counterparty, description, void, created_at, updated_at)
-     VALUES (?, ?, ?, "expense", ?, ?, ?, ?, ?, ?, 0, ?, ?)'
-);
-
-$posted = []; $skipped = []; $noCategory = []; $totalAmt = 0;
-$notGenerated = []; $zeroNet = [];
-
-$pdo->beginTransaction();
-try {
-    foreach ($res['rows'] as $r) {
-        $key = strtolower($r['employee']);
-
-        // Only post what a payslip actually paid. No slip for this employee
-        // this month means nothing was handed over, so nothing is booked.
-        if (!isset($paid[$key])) { $notGenerated[] = $r['employee']; continue; }
-        $net = (int) $paid[$key]['net'];
-
-        // Report these rather than dropping them silently — previously a
-        // non-positive net vanished from the response entirely.
-        if ($net <= 0) { $zeroNet[] = $r['employee']; continue; }
-
-        $catId = $catByEmp[$key] ?? null;
-        if (!$catId) { $noCategory[] = $r['employee']; continue; }
-
-        $dupStmt->execute([$r['employee'], $catId, $month]);
-        if ($dupStmt->fetchColumn()) { $skipped[] = $r['employee']; continue; }
-
-        $txId = newId('tx');
-        $ins->execute([
-            $txId, $date, $bookId, $net, $account['currency'],
-            $accountId, $catId, $r['employee'], 'Net salary ' . $month, $now, $now,
-        ]);
-        audit($pdo, 'created', 'transaction', $txId, null, [
-            'source' => 'payroll', 'employee' => $r['employee'], 'month' => $month, 'amount' => $net,
-        ]);
-        $posted[]  = $r['employee'];
-        $totalAmt += $net;
+$account   = null;
+if ($accountId !== '') {
+    $accStmt = $pdo->prepare('SELECT id, name, currency FROM accounts WHERE id = ? AND archived = 0');
+    $accStmt->execute([$accountId]);
+    $account = $accStmt->fetch();
+    if (!$account) {
+        jsonError('That source account was not found.');
     }
-    $pdo->commit();
-} catch (Throwable $e) {
-    $pdo->rollBack();
-    jsonError('Posting failed: ' . $e->getMessage(), 500);
+    // Remember it. Payroll is paid from the same account every month; being
+    // asked to re-pick it on every run is how the wrong one gets chosen.
+    settingSet($pdo, 'payroll_account_id', $accountId);
+}
+
+$slips = listPayslips($pdo, ['from_period' => $from, 'to_period' => $to, 'posted' => 0]);
+
+$posted = []; $skipped = []; $failed = []; $warnings = [];
+$totalAmt = 0.0;
+
+foreach ($slips as $slip) {
+    try {
+        // Each slip books on its own. A bad one is reported and stepped over —
+        // the old all-or-nothing transaction meant one broken row cost the
+        // whole month its postings.
+        $res = postPayslip($pdo, $slip['id'], $accountId);
+
+        if (!empty($res['already'])) {
+            $skipped[] = [
+                'id' => $slip['id'], 'employee' => $slip['employee'],
+                'period' => $slip['period'], 'reason' => 'already_posted',
+            ];
+            continue;
+        }
+        if (empty($res['posted'])) {
+            // Nothing to book: net, advance and statutory all round to zero.
+            $skipped[] = [
+                'id' => $slip['id'], 'employee' => $slip['employee'],
+                'period' => $slip['period'], 'reason' => 'nothing_to_post',
+            ];
+            $warnings = array_merge($warnings, $res['warnings'] ?? []);
+            continue;
+        }
+
+        $amount = $res['booked']['total_expense'] ?? 0.0;
+        $posted[] = [
+            'id'           => $slip['id'],
+            'employee'     => $slip['employee'],
+            'period'       => $slip['period'],
+            'label'        => periodLabel($slip['period']),
+            'net'          => $slip['net'],
+            'amount'       => $amount,
+            'transactions' => $res['transactions'],
+        ];
+        $totalAmt += $amount;
+        $warnings = array_merge($warnings, $res['warnings'] ?? []);
+    } catch (Throwable $e) {
+        $failed[] = [
+            'id' => $slip['id'], 'employee' => $slip['employee'],
+            'period' => $slip['period'], 'error' => $e->getMessage(),
+        ];
+    }
+}
+
+// Employees with no live payslip at all in the range. Reported because a name
+// missing from a payroll run is exactly the thing worth noticing, and posting
+// can say nothing about it otherwise.
+$notGenerated = [];
+foreach (payrollRowsForRange($pdo, $from, $to)['months'] as $m) {
+    foreach ($m['rows'] as $r) {
+        if (!$r['generated']) {
+            $notGenerated[] = ['employee' => $r['employee'], 'period' => $m['period']];
+        }
+    }
 }
 
 jsonResponse([
     'success'       => true,
-    'month'         => $month,
-    'account'       => $account['name'],
+    'month'         => $month,          // null for a range request
+    'from_period'   => $from,
+    'to_period'     => $to,
+    'account'       => $account['name'] ?? null,
+    'account_id'    => $accountId,
     'posted'        => $posted,
     'skipped'       => $skipped,
-    'no_category'   => $noCategory,
-    // Employees deliberately not posted. Reported so the payroll runner can
-    // see them instead of silently wondering where someone went.
-    'not_generated' => $notGenerated,   // no payslip generated for this month
-    'zero_net'      => $zeroNet,        // payslip net was zero or negative
-    'amount_total'  => $totalAmt,
+    'failed'        => $failed,
+    'not_generated' => $notGenerated,
+    'warnings'      => array_values(array_unique($warnings)),
+    'amount_total'  => round($totalAmt, 2),
 ]);

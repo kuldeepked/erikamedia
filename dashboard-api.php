@@ -7,6 +7,7 @@
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/finance-lib.php';
+require_once __DIR__ . '/ledger-lib.php';
 requireLogin();
 
 $pdo = db();
@@ -42,6 +43,47 @@ for ($i = 5; $i >= 0; $i--) {
 
 $advances = accountOutstanding($pdo, 'employee advances');
 $loans    = accountOutstanding($pdo, 'loans receivable');
+
+// PF, EOBI and professional tax withheld from payslips and not yet handed to
+// the authority. The account runs negative because the business is holding
+// someone else's money, so the amount owed is the balance without its sign.
+$statAcc   = findAccountByName($pdo, 'Statutory Payables');
+$statutory = 0.0;
+if ($statAcc) {
+    foreach (accountBalancesAsOf($pdo, date('Y-m-d')) as $a) {
+        if ($a['id'] === $statAcc['id']) { $statutory = round(-$a['balance'], 2); break; }
+    }
+}
+
+// Things the owner needs prompting about. Each is wrapped because a home
+// screen that dies over a secondary count is worse than one missing it.
+$attention = ['unposted_payslips' => 0, 'recurring_due' => 0, 'ledger_errors' => 0];
+
+try {
+    $attention['unposted_payslips'] = (int) $pdo->query(
+        'SELECT COUNT(*) FROM payslips WHERE voided = 0 AND posted = 0'
+    )->fetchColumn();
+} catch (Throwable $e) { /* table not migrated yet */ }
+
+try {
+    $today = date('Y-m-d');
+    foreach ($pdo->query('SELECT id, start_period, last_run_period, end_period FROM recurring_rules WHERE active = 1')->fetchAll() as $r) {
+        $nowP  = date('Y-m');
+        $lastP = (string) ($r['last_run_period'] ?? '');
+        $endP  = (string) ($r['end_period'] ?? '');
+        if ($endP !== '' && $endP < $nowP) continue;
+        if ($lastP === '' || $lastP < $nowP) {
+            if ((string) $r['start_period'] <= $nowP) $attention['recurring_due']++;
+        }
+    }
+} catch (Throwable $e) { /* table not migrated yet */ }
+
+try {
+    $fyStart = fiscalYearFor($pdo, date('Y-m-d'))['start'];
+    foreach (dataIntegrityChecks($pdo, $bizBooks, $fyStart, date('Y-m-d')) as $issue) {
+        if ($issue['severity'] === 'error') $attention['ledger_errors'] += $issue['count'];
+    }
+} catch (Throwable $e) { /* nothing to report */ }
 
 // Activity (this month): interview / placement counts + top performer.
 $activityFile = __DIR__ . '/activity.json';
@@ -114,8 +156,10 @@ jsonResponse([
         'headcount'            => $headcount,
         'advances_outstanding' => $advances,
         'loans_outstanding'    => $loans,
+        'statutory_owed'       => $statutory,
         'payroll_base'         => max(0, $payrollBase),
     ],
+    'attention'       => $attention,
     'cashflow'        => $cashflow,
     'top_performer'   => $top,
     'recent_activity' => $recent,

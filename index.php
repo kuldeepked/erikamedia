@@ -155,6 +155,27 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
             Finances
         </a>
 
+        <a class="nav-item" id="nav-accounting" href="#"
+           onclick="showTab('accounting', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/>
+                <line x1="7" y1="8" x2="17" y2="8"/>
+                <line x1="7" y1="12" x2="12" y2="12"/>
+                <line x1="7" y1="16" x2="14" y2="16"/>
+            </svg>
+            Accounting
+        </a>
+
+        <a class="nav-item" id="nav-recurring" href="#"
+           onclick="showTab('recurring', this); return false;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="23 4 23 10 17 10"/>
+                <polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Recurring
+        </a>
+
         <a class="nav-item" id="nav-reports" href="#"
            onclick="showTab('reports', this); return false;">
             <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -938,6 +959,67 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
         ───────────────────────────────────── -->
         <div id="tab-fin-setup" class="tab-content">
 
+            <div class="card">
+                <div class="card-title">Company &amp; accounting</div>
+                <div class="card-subtitle">
+                    These appear on every report and export you hand to your accountant, so they are
+                    worth getting right once.
+                </div>
+                <div id="settings-alert" class="team-alert"></div>
+                <form id="settings-form" onsubmit="saveSettings(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Company name</label>
+                            <input type="text" id="set-company-name" maxlength="120">
+                        </div>
+                        <div class="form-group">
+                            <label>NTN <span class="muted">(national tax number)</span></label>
+                            <input type="text" id="set-company-ntn" maxlength="40" placeholder="e.g. 1234567-8">
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Address</label>
+                            <input type="text" id="set-company-address" maxlength="300">
+                        </div>
+                        <div class="form-group">
+                            <label>Financial year starts</label>
+                            <select id="set-fy-month">
+                                <option value="7">July &mdash; Pakistan tax year</option>
+                                <option value="1">January &mdash; calendar year</option>
+                                <option value="4">April</option>
+                                <option value="10">October</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Base currency</label>
+                            <select id="set-currency">
+                                <option>PKR</option><option>USD</option><option>USDT</option>
+                                <option>EUR</option><option>AED</option><option>GBP</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Salaries are paid from</label>
+                            <select id="set-payroll-account"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>PF / EOBI / tax collect in</label>
+                            <select id="set-statutory-account"></select>
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>
+                                <input type="checkbox" id="set-autopost" style="width:auto;margin-right:8px;">
+                                Book a payslip into the ledger the moment it is generated
+                            </label>
+                            <p class="form-hint" style="margin-top:8px;">
+                                Leave this on. With it off, salaries only reach the books when you press
+                                &ldquo;Post to ledger&rdquo; on the Payroll screen, and a month that gets
+                                missed leaves the accounts short by an entire payroll.
+                            </p>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-generate">Save</button>
+                </form>
+            </div>
+
             <div class="setup-toolbar">
                 <div class="setup-toolbar-text">
                     <strong>New here?</strong> One click creates the typical accounts &amp; categories
@@ -1150,37 +1232,54 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
              PAYROLL RUN
         ───────────────────────────────────── -->
         <div id="tab-payroll" class="tab-content">
-            <div class="card">
-                <div class="section-head">
-                    <div>
-                        <div class="card-title">Payroll Run</div>
-                        <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Monthly payslip preview for every employee — generated through the same engine as the Payslip tab.</div>
-                    </div>
-                    <div class="finance-controls" style="margin-bottom:0;">
-                        <input type="month" id="payroll-month" value="<?= date('Y-m') ?>" onchange="loadPayroll()">
-                        <button class="btn-finance-secondary" onclick="loadPayroll()">&#8635; Refresh</button>
-                        <button class="btn-finance-primary" id="payroll-genall" onclick="generateAllPending()">Generate all pending</button>
-                        <button class="btn-finance-secondary" onclick="openPostSalaries()">Post salaries to Finances</button>
-                    </div>
+
+            <div class="range-bar">
+                <div class="range-presets" id="payroll-presets"></div>
+                <div class="range-custom">
+                    <input type="month" id="payroll-from" onchange="payrollCustom()">
+                    <span>to</span>
+                    <input type="month" id="payroll-to" onchange="payrollCustom()">
                 </div>
-                <div id="payroll-body"><p class="emp-empty">Loading&hellip;</p></div>
+                <select id="payroll-account" onchange="payrollSaveAccount()" title="Account salaries are paid from">
+                    <option value="">— paying account —</option>
+                </select>
+                <div class="range-spacer"></div>
+                <button class="btn-finance-secondary" onclick="loadPayroll()">&#8635; Refresh</button>
             </div>
 
-            <div class="card" id="payroll-post-card" style="display:none; margin-top:18px;">
-                <div class="card-title">Post salaries to Finances — <span id="pp-month"></span></div>
-                <div class="card-subtitle" style="margin-bottom:16px; padding-bottom:14px;">Records each employee's <strong>net pay</strong> as an expense in their linked salary category (Erika book). Employees already posted for this month are skipped automatically.</div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Pay salaries from *</label>
-                        <select id="pp-account"><option value="">— Select account —</option></select>
-                    </div>
+            <div id="payroll-alert" class="team-alert"></div>
+
+            <div class="card" style="margin-bottom:18px;">
+                <div class="section-head" style="margin-bottom:12px;">
+                    <div class="card-title" style="font-size:13px;">Who to include</div>
+                    <div style="font-size:12px;color:var(--text-muted);" id="payroll-picked"></div>
                 </div>
-                <div id="pp-result" class="form-hint" style="display:none; margin-top:14px;"></div>
-                <div>
-                    <button class="btn-finance-primary" style="margin-top:18px;" onclick="confirmPostSalaries()">Post salaries</button>
-                    <button class="btn-cancel" onclick="closePostSalaries()">Cancel</button>
-                </div>
+                <div class="chip-select" id="payroll-chips"></div>
             </div>
+
+            <div id="payroll-summary"></div>
+
+            <div class="card" style="margin-bottom:18px;">
+                <div class="finance-actions">
+                    <button class="btn-finance-primary" id="payroll-genall" onclick="payrollGenerateAll()">
+                        Generate &amp; post all pending
+                    </button>
+                    <button class="btn-finance-accent" onclick="payrollDownloadAll()">
+                        &#8681; Download all payslips (one PDF)
+                    </button>
+                    <button class="btn-finance-secondary" onclick="payrollPostUnposted()">
+                        Post unposted to ledger
+                    </button>
+                </div>
+                <p class="form-hint" style="margin-top:14px;">
+                    Generating a payslip books it straight into the ledger &mdash; net pay against the paying
+                    account, any advance recovered against Employee Advances, and PF, EOBI and tax against
+                    Statutory Payables. Re-generating a month replaces the earlier slip and reverses what it
+                    booked, so nothing is ever counted twice.
+                </p>
+            </div>
+
+            <div id="payroll-body"><p class="emp-empty">Loading&hellip;</p></div>
         </div>
 
         <!-- ─────────────────────────────────────
@@ -1201,6 +1300,124 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
                 <div id="reports-summary"></div>
             </div>
             <div id="reports-charts"></div>
+        </div>
+
+        <!-- ─────────────────────────────────────
+             ACCOUNTING
+        ───────────────────────────────────── -->
+        <div id="tab-accounting" class="tab-content">
+
+            <div class="range-bar">
+                <div class="range-presets" id="acct-presets"></div>
+                <div class="range-custom">
+                    <input type="date" id="acct-from" onchange="acctCustom()">
+                    <span>to</span>
+                    <input type="date" id="acct-to" onchange="acctCustom()">
+                </div>
+                <select id="acct-book" onchange="acctReload()">
+                    <option value="business">Business only</option>
+                    <option value="all">All books</option>
+                </select>
+                <div class="range-spacer"></div>
+                <div class="range-label">Showing <strong id="acct-range-label">&hellip;</strong></div>
+            </div>
+
+            <div id="acct-alert" class="team-alert"></div>
+
+            <div class="fin-subtabs">
+                <button type="button" class="fin-subtab active" data-sub="overview"  onclick="acctSub('overview')">Overview</button>
+                <button type="button" class="fin-subtab"        data-sub="pl"        onclick="acctSub('pl')">Profit &amp; Loss</button>
+                <button type="button" class="fin-subtab"        data-sub="trial"     onclick="acctSub('trial')">Trial Balance</button>
+                <button type="button" class="fin-subtab"        data-sub="ledger"    onclick="acctSub('ledger')">General Ledger</button>
+                <button type="button" class="fin-subtab"        data-sub="statement" onclick="acctSub('statement')">Account Statement</button>
+                <button type="button" class="fin-subtab"        data-sub="expenses"  onclick="acctSub('expenses')">Expenses by Month</button>
+                <button type="button" class="fin-subtab"        data-sub="payroll"   onclick="acctSub('payroll')">Payroll Register</button>
+                <button type="button" class="fin-subtab"        data-sub="health"    onclick="acctSub('health')">Health</button>
+                <button type="button" class="fin-subtab"        data-sub="pack"      onclick="acctSub('pack')">Tax Pack</button>
+            </div>
+
+            <div id="acct-body"><p class="emp-empty">Loading&hellip;</p></div>
+        </div>
+
+        <!-- ─────────────────────────────────────
+             RECURRING
+        ───────────────────────────────────── -->
+        <div id="tab-recurring" class="tab-content">
+            <div class="card">
+                <div class="section-head">
+                    <div>
+                        <div class="card-title">Recurring money in &amp; out</div>
+                        <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">
+                            Rent, internet, subscriptions &mdash; the fixed amounts that otherwise get
+                            remembered late. A rule never books the same month twice.
+                        </div>
+                    </div>
+                    <div class="finance-controls" style="margin-bottom:0;">
+                        <button class="btn-finance-secondary" onclick="loadRecurring()">&#8635; Refresh</button>
+                        <button class="btn-finance-primary" id="rec-run-all" onclick="recRunAll()">Post everything due</button>
+                        <button class="btn-finance-accent" onclick="recOpenForm()">+ New rule</button>
+                    </div>
+                </div>
+                <div id="rec-alert" class="team-alert"></div>
+                <div id="rec-body"><p class="emp-empty">Loading&hellip;</p></div>
+            </div>
+
+            <div class="card" id="rec-form-card" style="display:none;">
+                <div class="card-title" id="rec-form-title">New recurring rule</div>
+                <form id="rec-form" onsubmit="recSubmit(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Name *</label>
+                            <input type="text" id="rec-name" required maxlength="120" placeholder="e.g. Office rent">
+                        </div>
+                        <div class="form-group">
+                            <label>Type *</label>
+                            <select id="rec-type" required onchange="recTypeChange()">
+                                <option value="expense">Money Out (Expense)</option>
+                                <option value="income">Money In (Income)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount *</label>
+                            <input type="number" id="rec-amount" required min="0.01" step="0.01" inputmode="decimal">
+                        </div>
+                        <div class="form-group">
+                            <label>Account *</label>
+                            <select id="rec-account" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="rec-category"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Day of month *</label>
+                            <input type="number" id="rec-day" required min="1" max="31" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Starts *</label>
+                            <input type="month" id="rec-start" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Ends <span class="muted">(optional)</span></label>
+                            <input type="month" id="rec-end">
+                        </div>
+                        <div class="form-group">
+                            <label>Counterparty</label>
+                            <input type="text" id="rec-counterparty" maxlength="200" placeholder="e.g. Landlord">
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <input type="text" id="rec-description" maxlength="500">
+                        </div>
+                    </div>
+                    <p class="form-hint">
+                        A day later than the month is short gets pulled back to the last day &mdash;
+                        day 31 in February books on the 28th, never on 3 March.
+                    </p>
+                    <button type="submit" class="btn-generate">Save rule</button>
+                    <button type="button" class="btn-cancel" onclick="recCloseForm()">Cancel</button>
+                </form>
+            </div>
         </div>
 
     </div><!-- /content-area -->
@@ -1253,7 +1470,9 @@ function renderDashboard(d) {
     var k = d.kpis || {};
     var cf = d.cashflow || [];
 
-    var html = '<div class="kpi-grid">';
+    var html = dashAttention(d.attention || {});
+
+    html += '<div class="kpi-grid">';
     html += dashKpi('Net — this month', rsFmt(k.net), dashDelta(k.net, k.net_prev), 'money');
     html += dashKpi('Income', rsFmt(k.income), dashDelta(k.income, k.income_prev), '');
     html += dashKpi('Expenses', rsFmt(k.expense), dashDelta(k.expense, k.expense_prev), '');
@@ -1261,13 +1480,14 @@ function renderDashboard(d) {
     html += dashKpi('Headcount', numFmt(k.headcount), '<div class="kpi-sub">active employees</div>', 'people');
     html += dashKpi('Outstanding advances', rsFmt(k.advances_outstanding), '<div class="kpi-sub">recoverable from staff</div>', '');
     html += dashKpi('Outstanding loans', rsFmt(k.loans_outstanding), '<div class="kpi-sub">loans receivable</div>', '');
+    html += dashKpi('Owed to EOBI / FBR', rsFmt(k.statutory_owed), '<div class="kpi-sub">withheld, not yet remitted</div>', '');
     html += dashKpi('Base payroll', rsFmt(k.payroll_base), '<div class="kpi-sub">' + numFmt(k.headcount) + ' employees</div>', 'pay');
     html += '</div>';
 
     html += '<div class="dash-cols"><div class="card">';
     html += '<div class="section-head"><div class="card-title">Cash flow — last 6 months</div>'
-          + '<div class="legend"><span><i style="background:var(--success)"></i>Income</span>'
-          + '<span><i style="background:var(--danger)"></i>Expense</span></div></div>';
+          + '<div class="legend"><span><i style="background:var(--series-in)"></i>Income</span>'
+          + '<span><i style="background:var(--series-out)"></i>Expense</span></div></div>';
     html += dashChart(cf);
     html += '<div class="section-head" style="margin-top:28px;"><div class="card-title">Recent activity</div>'
           + '<button class="btn-link" onclick="document.getElementById(\'nav-activity\').click()">View all →</button></div>';
@@ -1283,6 +1503,38 @@ function renderDashboard(d) {
 
     var b = document.getElementById('dashboard-body');
     if (b) b.innerHTML = html;
+}
+
+// Things that are quietly wrong and will not fix themselves — an unposted
+// payslip is a month of salary missing from the books, and neither the KPI
+// tiles nor the chart would show its absence.
+function dashAttention(a) {
+    var items = [];
+    if (a.ledger_errors) {
+        items.push(['sev-error', a.ledger_errors + ' ledger problem' + (a.ledger_errors === 1 ? '' : 's')
+                  + ' this financial year', 'These stop the books balancing.',
+                    'nav-accounting', 'Review']);
+    }
+    if (a.unposted_payslips) {
+        items.push(['sev-warning', a.unposted_payslips + ' payslip' + (a.unposted_payslips === 1 ? '' : 's')
+                  + ' not in the ledger', 'Salary was paid but never booked as an expense.',
+                    'nav-payroll', 'Post them']);
+    }
+    if (a.recurring_due) {
+        items.push(['sev-info', a.recurring_due + ' recurring entr' + (a.recurring_due === 1 ? 'y' : 'ies') + ' due',
+                    'Rent, subscriptions and the like are waiting to be booked.',
+                    'nav-recurring', 'Post them']);
+    }
+    if (!items.length) return '';
+
+    return '<div style="margin-bottom:18px;">' + items.map(function (i) {
+        return '<div class="health-item ' + i[0] + '"><div class="health-head">'
+             + '<span class="health-title">' + esc(i[1]) + '</span>'
+             + '<div style="flex:1"></div>'
+             + '<button class="btn-edit" onclick="document.getElementById(\'' + i[3] + '\').click()">'
+             + esc(i[4]) + ' →</button></div>'
+             + '<div class="health-detail">' + esc(i[2]) + '</div></div>';
+    }).join('') + '</div>';
 }
 
 function dashKpi(label, value, sub, icon) {
@@ -1461,84 +1713,328 @@ function exportReportCsv() {
 }
 
 // ── Payroll Run ───────────────────────────────────────────────────────────
-var _payrollData = null, _payrollRows = [];
+// Payroll works over a span of months rather than one at a time, because the
+// questions that actually get asked — "pay everyone for the quarter", "give me
+// every payslip for the year" — are range questions. A single month is just a
+// range one month long.
+
+var PAYROLL_PRESETS = [
+    ['this_month',    'This month'],
+    ['last_month',    'Last month'],
+    ['last_3_months', 'Last 3 months'],
+    ['last_6_months', 'Last 6 months'],
+    ['this_fy',       'This FY'],
+    ['all_time',      'All time'],
+];
+
+var payrollState = {
+    preset:    'this_month',
+    from:      '',
+    to:        '',
+    employees: [],      // empty means everyone
+    accounts:  [],
+    earliest:  '',      // earliest month we know has payslips
+    data:      null,
+    started:   false,
+};
+
+function payrollAlert(msg, ok) {
+    var el = document.getElementById('payroll-alert');
+    el.className = 'team-alert ' + (ok ? 'success' : 'error');
+    el.innerHTML = msg;
+    el.style.display = 'block';
+    if (ok) setTimeout(function () { el.style.display = 'none'; }, 6000);
+}
+
+function monthShift(month, delta) {
+    var y = parseInt(month.slice(0, 4), 10);
+    var m = parseInt(month.slice(5, 7), 10) - 1 + delta;
+    y += Math.floor(m / 12);
+    m = ((m % 12) + 12) % 12;
+    return y + '-' + String(m + 1).padStart(2, '0');
+}
+
+function thisMonth() { return new Date().toISOString().slice(0, 7); }
+
+// Pakistan's fiscal year runs July to June. There is no point listing months
+// that have not happened, so the range is capped at the current month.
+function payrollResolveRange(preset) {
+    var now = thisMonth();
+    switch (preset) {
+        case 'this_month':    return [now, now];
+        case 'last_month':    return [monthShift(now, -1), monthShift(now, -1)];
+        case 'last_3_months': return [monthShift(now, -2), now];
+        case 'last_6_months': return [monthShift(now, -5), now];
+        case 'this_fy': {
+            var y = parseInt(now.slice(0, 4), 10);
+            var m = parseInt(now.slice(5, 7), 10);
+            var start = (m >= 7 ? y : y - 1) + '-07';
+            return [start, now];
+        }
+        case 'all_time':
+            return [payrollState.earliest || monthShift(now, -11), now];
+    }
+    return [now, now];
+}
 
 function loadPayroll() {
+    if (!payrollState.started) {
+        document.getElementById('payroll-presets').innerHTML = PAYROLL_PRESETS.map(function (p) {
+            return '<button type="button" class="range-preset' + (p[0] === payrollState.preset ? ' active' : '')
+                 + '" data-preset="' + p[0] + '" onclick="payrollPreset(\'' + p[0] + '\')">'
+                 + esc(p[1]) + '</button>';
+        }).join('');
+        payrollState.started = true;
+    }
+
+    if (payrollState.preset !== 'custom') {
+        var r = payrollResolveRange(payrollState.preset);
+        payrollState.from = r[0];
+        payrollState.to   = r[1];
+        document.getElementById('payroll-from').value = r[0];
+        document.getElementById('payroll-to').value   = r[1];
+    }
+
     var body = document.getElementById('payroll-body');
-    if (!body) return;
     body.innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
-    var month = document.getElementById('payroll-month').value || '';
-    fetch('payroll-api.php' + (month ? '?month=' + encodeURIComponent(month) : ''))
+
+    fetch('payroll-api.php?from=' + encodeURIComponent(payrollState.from)
+                      + '&to='   + encodeURIComponent(payrollState.to))
         .then(function (r) { return r.json(); })
-        .then(function (d) { renderPayroll(d); })
-        .catch(function () { body.innerHTML = '<p class="emp-empty">Could not load payroll.</p>'; });
+        .then(function (d) {
+            if (d.error) { body.innerHTML = '<p class="emp-empty">' + esc(d.error) + '</p>'; return; }
+            payrollState.data = d;
+            if (d.accounts && d.accounts.length) payrollFillAccounts(d);
+            if (d.earliest_period) payrollState.earliest = d.earliest_period;
+            renderPayroll(d);
+        })
+        .catch(function (e) {
+            body.innerHTML = '<p class="emp-empty">Could not load payroll: ' + esc(e.message || e) + '</p>';
+        });
+}
+
+function payrollPreset(preset) {
+    payrollState.preset = preset;
+    document.querySelectorAll('#payroll-presets .range-preset').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.preset === preset);
+    });
+    loadPayroll();
+}
+
+function payrollCustom() {
+    var f = document.getElementById('payroll-from').value;
+    var t = document.getElementById('payroll-to').value;
+    if (!f || !t) return;
+    if (f > t) { var tmp = f; f = t; t = tmp; }
+    payrollState.preset = 'custom';
+    payrollState.from = f;
+    payrollState.to = t;
+    document.querySelectorAll('#payroll-presets .range-preset').forEach(function (b) {
+        b.classList.remove('active');
+    });
+    loadPayroll();
+}
+
+function payrollFillAccounts(d) {
+    payrollState.accounts = d.accounts || [];
+    var sel = document.getElementById('payroll-account');
+    if (sel.options.length > 1) return;   // already built
+    payrollState.accounts.forEach(function (a) {
+        sel.add(new Option(a.name + ' (' + a.currency + ')', a.id));
+    });
+    if (d.default_account_id) sel.value = d.default_account_id;
+}
+
+// Remembering the paying account means it is chosen once rather than on every
+// run, which is where a salary previously ended up against the wrong bank.
+function payrollSaveAccount() {
+    var id = document.getElementById('payroll-account').value;
+    if (!id) return;
+    apiPost('settings-api.php', { action: 'save', payroll_account_id: id }).catch(function () {});
+}
+
+function payrollAccountId() {
+    return document.getElementById('payroll-account').value || '';
+}
+
+function payrollSelectedEmployees() {
+    return payrollState.employees.slice();
+}
+
+function payrollToggleEmployee(name) {
+    var i = payrollState.employees.indexOf(name);
+    if (i >= 0) payrollState.employees.splice(i, 1);
+    else payrollState.employees.push(name);
+    renderPayroll(payrollState.data);
+}
+
+function payrollClearEmployees() {
+    payrollState.employees = [];
+    renderPayroll(payrollState.data);
 }
 
 function renderPayroll(d) {
-    _payrollData = d;
-    _payrollRows = d.rows || [];
-    var t = d.totals || {};
+    if (!d) return;
+    var months = d.months || [];
+    var picked = payrollState.employees;
 
-    var html = '<div class="info-tip" style="margin-bottom:18px;"><span>&#9432;</span><span>'
-        + 'Net = Basic + Allowance + Commission + Bonus − Advance − PF − EOBI − Tax − Penalty. '
-        + 'Commission &amp; penalty come from unpaid Activity Log entries for ' + esc(monthLabel(d.month))
-        + ' (including attendance late-penalties). Generating a payslip records it in History and marks those entries paid.'
-        + '</span></div>';
-
-    html += '<div class="finance-table-wrap"><table class="finance-table"><thead><tr>'
-        + '<th>Employee</th><th class="num">Basic</th><th class="num">Allow.</th><th class="num">Comm.</th>'
-        + '<th class="num">Bonus</th><th class="num">Advance</th><th class="num">PF</th><th class="num">EOBI</th>'
-        + '<th class="num">Tax</th><th class="num">Penalty</th><th class="num">Net pay</th><th>Status</th><th></th>'
-        + '</tr></thead><tbody>';
-
-    _payrollRows.forEach(function (r, i) {
-        html += '<tr>'
-            + '<td>' + esc(r.employee) + '<span class="fin-meta">' + esc(r.designation) + '</span></td>'
-            + '<td class="num">' + numFmt(r.basic) + '</td>'
-            + '<td class="num">' + numFmt(r.allowance) + '</td>'
-            + '<td class="num">' + numFmt(r.commission) + '</td>'
-            + '<td class="num">' + numFmt(r.bonus) + '</td>'
-            + '<td class="num">' + (r.loan ? '<span class="neg">−' + numFmt(r.loan) + '</span>' : '—') + '</td>'
-            + '<td class="num">' + (r.provident_fund ? numFmt(r.provident_fund) : '—') + '</td>'
-            + '<td class="num">' + (r.eobi ? numFmt(r.eobi) : '—') + '</td>'
-            + '<td class="num">' + (r.professional_tax ? numFmt(r.professional_tax) : '—') + '</td>'
-            + '<td class="num">' + (r.penalty ? '<span class="neg">−' + numFmt(r.penalty) + '</span>' : '—') + '</td>'
-            + '<td class="num"><strong>Rs. ' + numFmt(r.net) + '</strong></td>'
-            + '<td>' + (r.generated ? '<span class="paid-badge">Generated</span>' : '<span class="unpaid-badge">Pending</span>') + '</td>'
-            + '<td class="num"><button class="btn-edit" onclick="generatePayslipFor(' + i + ')">' + (r.generated ? 'Re-gen' : 'Payslip') + '</button></td>'
-            + '</tr>';
+    // Chips. The API sends a summary object per person, not a bare name.
+    var names = (d.employees || []).map(function (e) {
+        return typeof e === 'string' ? e : e.employee;
     });
+    document.getElementById('payroll-chips').innerHTML =
+        '<button type="button" class="chip chip-all' + (picked.length === 0 ? ' active' : '')
+      + '" onclick="payrollClearEmployees()">Everyone</button>'
+      + names.map(function (n) {
+            return '<button type="button" class="chip' + (picked.indexOf(n) >= 0 ? ' active' : '')
+                 + '" onclick="payrollToggleEmployee(' + JSON.stringify(n).replace(/"/g, '&quot;') + ')">'
+                 + esc(n) + '</button>';
+        }).join('');
+    document.getElementById('payroll-picked').textContent =
+        picked.length ? (picked.length + ' selected') : 'all ' + names.length + ' employees';
 
-    html += '<tr class="tot-row"><td>Total — ' + _payrollRows.length + ' employees</td>'
-        + '<td class="num">' + numFmt(t.basic) + '</td><td class="num">' + numFmt(t.allowance) + '</td>'
-        + '<td class="num">' + numFmt(t.commission) + '</td><td class="num">' + numFmt(t.bonus) + '</td>'
-        + '<td class="num">' + (t.loan ? '−' + numFmt(t.loan) : '—') + '</td>'
-        + '<td class="num">' + numFmt(t.provident_fund) + '</td><td class="num">' + numFmt(t.eobi) + '</td>'
-        + '<td class="num">' + numFmt(t.professional_tax) + '</td>'
-        + '<td class="num">' + (t.penalty ? '−' + numFmt(t.penalty) : '—') + '</td>'
-        + '<td class="num">Rs. ' + numFmt(t.net) + '</td><td colspan="2"></td></tr>';
+    // Roll the visible rows up into headline figures.
+    var tot = { basic: 0, allowance: 0, commission: 0, bonus: 0, loan: 0,
+                provident_fund: 0, eobi: 0, professional_tax: 0, penalty: 0, net: 0 };
+    var pending = 0, generated = 0;
+    months.forEach(function (m) {
+        payrollVisibleRows(m).forEach(function (r) {
+            Object.keys(tot).forEach(function (k) { tot[k] += (r[k] || 0); });
+            if (r.generated) generated++; else pending++;
+        });
+    });
+    var statutory = tot.provident_fund + tot.eobi + tot.professional_tax;
 
-    html += '</tbody></table></div>';
-    document.getElementById('payroll-body').innerHTML = html;
+    document.getElementById('payroll-summary').innerHTML =
+        '<div class="stat-strip">'
+      + '<div class="stat-cell"><div class="sc-label">Months</div><div class="sc-value">' + months.length + '</div>'
+      + '<div class="sc-sub">' + esc(monthLabel(payrollState.from)) + ' – ' + esc(monthLabel(payrollState.to)) + '</div></div>'
+      + '<div class="stat-cell"><div class="sc-label">Gross</div><div class="sc-value">Rs. '
+      + numFmt(tot.basic + tot.allowance + tot.commission + tot.bonus) + '</div></div>'
+      + '<div class="stat-cell"><div class="sc-label">Withheld</div><div class="sc-value">Rs. ' + numFmt(statutory) + '</div>'
+      + '<div class="sc-sub">PF, EOBI, tax</div></div>'
+      + '<div class="stat-cell"><div class="sc-label">Advances</div><div class="sc-value">Rs. ' + numFmt(tot.loan) + '</div>'
+      + '<div class="sc-sub">recovered</div></div>'
+      + '<div class="stat-cell"><div class="sc-label">Net to pay</div><div class="sc-value">Rs. ' + numFmt(tot.net) + '</div></div>'
+      + '<div class="stat-cell"><div class="sc-label">Slips</div><div class="sc-value">' + generated + ' / ' + (generated + pending) + '</div>'
+      + '<div class="sc-sub">' + (pending ? pending + ' still pending' : 'all generated') + '</div></div>'
+      + '</div>';
 
     var btn = document.getElementById('payroll-genall');
-    if (btn) {
-        btn.textContent = d.pending_count > 0 ? ('Generate all pending (' + d.pending_count + ')') : 'All generated ✓';
-        btn.disabled = d.pending_count === 0;
+    btn.disabled = pending === 0;
+    btn.textContent = pending ? ('Generate & post ' + pending + ' pending') : 'All generated ✓';
+
+    if (!months.length) {
+        document.getElementById('payroll-body').innerHTML =
+            '<p class="emp-empty">No months in this range.</p>';
+        return;
     }
+
+    // Newest month first — that is the one being worked on.
+    var html = months.slice().reverse().map(function (m, idx) {
+        return payrollMonthBlock(m, idx === 0);
+    }).join('');
+    document.getElementById('payroll-body').innerHTML = html;
 }
 
-function buildPayslipForm(r, target) {
+function payrollVisibleRows(m) {
+    var picked = payrollState.employees;
+    if (!picked.length) return m.rows || [];
+    return (m.rows || []).filter(function (r) { return picked.indexOf(r.employee) >= 0; });
+}
+
+function payrollMonthBlock(m, open) {
+    var rows = payrollVisibleRows(m);
+    var pending = rows.filter(function (r) { return !r.generated; }).length;
+    var net = rows.reduce(function (a, r) { return a + (r.net || 0); }, 0);
+
+    var h = '<div class="reg-month' + (open ? ' open' : '') + '" id="pm-' + esc(m.period) + '">'
+          + '<div class="reg-month-head" onclick="this.parentNode.classList.toggle(\'open\')">'
+          + '<svg class="reg-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>'
+          + '<span class="reg-month-title">' + esc(m.label) + '</span>'
+          + '<span class="reg-month-meta">' + rows.length + ' employees &middot; Rs. ' + numFmt(net) + ' net</span>'
+          + '<div class="reg-spacer"></div>'
+          + (pending ? '<span class="status-pill status-pending">' + pending + ' pending</span>'
+                     : '<span class="status-pill status-posted">all generated</span>')
+          + '</div><div class="reg-month-body">';
+
+    if (!rows.length) {
+        h += '<p class="emp-empty">Nobody selected for this month.</p></div></div>';
+        return h;
+    }
+
+    h += '<div class="finance-table-wrap"><table class="finance-table"><thead><tr>'
+       + '<th>Employee</th><th class="num">Basic</th><th class="num">Allow.</th><th class="num">Comm.</th>'
+       + '<th class="num">Bonus</th><th class="num">Advance</th><th class="num">PF</th><th class="num">EOBI</th>'
+       + '<th class="num">Tax</th><th class="num">Penalty</th><th class="num">Net pay</th><th>Status</th><th></th>'
+       + '</tr></thead><tbody>';
+
+    rows.forEach(function (r) {
+        var ref = m.period + '|' + r.employee;
+        h += '<tr>'
+           + '<td>' + esc(r.employee) + '<span class="fin-meta">' + esc(r.designation || '') + '</span></td>'
+           + '<td class="num">' + numFmt(r.basic) + '</td>'
+           + '<td class="num">' + numFmt(r.allowance) + '</td>'
+           + '<td class="num">' + numFmt(r.commission) + '</td>'
+           + '<td class="num">' + numFmt(r.bonus) + '</td>'
+           + '<td class="num">' + (r.loan ? '<span class="neg">&minus;' + numFmt(r.loan) + '</span>'
+                + (r.advance_carried_forward ? '<span class="fin-meta">' + numFmt(r.advance_carried_forward) + ' left</span>' : '')
+                : '—') + '</td>'
+           + '<td class="num">' + (r.provident_fund ? numFmt(r.provident_fund) : '—') + '</td>'
+           + '<td class="num">' + (r.eobi ? numFmt(r.eobi) : '—') + '</td>'
+           + '<td class="num">' + (r.professional_tax ? numFmt(r.professional_tax) : '—') + '</td>'
+           + '<td class="num">' + (r.penalty ? '<span class="neg">&minus;' + numFmt(r.penalty) + '</span>' : '—') + '</td>'
+           + '<td class="num"><strong>Rs. ' + numFmt(r.net) + '</strong></td>'
+           + '<td>' + (r.posted ? '<span class="status-pill status-posted">posted</span>'
+                     : r.generated ? '<span class="status-pill status-pending">not posted</span>'
+                                   : '<span class="unpaid-badge">pending</span>') + '</td>'
+           + '<td class="num" style="white-space:nowrap;">'
+           + '<button class="btn-edit" onclick="payrollOpenSlip(\'' + esc(ref) + '\')">'
+           + (r.generated ? 'Re-gen' : 'Payslip') + '</button></td>'
+           + '</tr>';
+    });
+
+    var t = m.totals || {};
+    h += '<tr class="tot-row"><td>Total — ' + rows.length + '</td>'
+       + '<td class="num">' + numFmt(t.basic) + '</td><td class="num">' + numFmt(t.allowance) + '</td>'
+       + '<td class="num">' + numFmt(t.commission) + '</td><td class="num">' + numFmt(t.bonus) + '</td>'
+       + '<td class="num">' + (t.loan ? '&minus;' + numFmt(t.loan) : '—') + '</td>'
+       + '<td class="num">' + numFmt(t.provident_fund) + '</td><td class="num">' + numFmt(t.eobi) + '</td>'
+       + '<td class="num">' + numFmt(t.professional_tax) + '</td>'
+       + '<td class="num">' + (t.penalty ? '&minus;' + numFmt(t.penalty) : '—') + '</td>'
+       + '<td class="num">Rs. ' + numFmt(t.net) + '</td><td colspan="2"></td></tr>';
+
+    h += '</tbody></table></div></div></div>';
+    return h;
+}
+
+// Open one payslip as a printable page. Unlike the old Re-gen path this does
+// NOT set is_regen: under the new engine a repeat generation voids the previous
+// slip and reverses everything it booked before writing the replacement, so
+// re-generating is the correct way to fix a wrong month. is_regen is now only
+// for re-printing an existing document from Document History.
+function payrollOpenSlip(ref) {
+    var parts = ref.split('|');
+    var period = parts[0], name = parts.slice(1).join('|');
+    var month = (payrollState.data.months || []).filter(function (m) { return m.period === period; })[0];
+    if (!month) return;
+    var r = (month.rows || []).filter(function (x) { return x.employee === name; })[0];
+    if (!r) return;
+
+    if (r.generated && !confirm('A payslip for ' + name + ' already exists for ' + month.label
+        + '.\n\nGenerating again replaces it and reverses what the old one booked, so nothing is '
+        + 'counted twice. Continue?')) return;
+
     var form = document.createElement('form');
     form.method = 'POST';
     form.action = 'generate-payslip.php';
-    form.target = target;
+    form.target = '_blank';
     form.style.display = 'none';
     var fields = {
         _csrf: CSRF,
         employee_name: r.employee,
-        designation: r.designation,
-        pay_period: _payrollData.month,
+        designation: r.designation || '',
+        pay_period: period,
         basic_salary: r.basic,
         allowance: r.allowance,
         commission: r.commission,
@@ -1550,98 +2046,111 @@ function buildPayslipForm(r, target) {
         absent_late: r.absent_late,
         penalty: r.penalty,
         paid_activity_ids: (r.activity_ids || []).join(','),
-        // A payslip already exists for this employee/month, so this is a
-        // reprint. generate-payslip.php skips its side effects when this is
-        // set — without it a Re-gen click writes a SECOND advance recovery,
-        // wiping a real receivable off the books, and duplicates the history
-        // record. regenerate.php has always sent this; this form did not.
-        is_regen: r.generated ? '1' : ''
+        account_id: payrollAccountId(),
     };
     Object.keys(fields).forEach(function (k) {
         var inp = document.createElement('input');
         inp.type = 'hidden'; inp.name = k; inp.value = fields[k];
         form.appendChild(inp);
     });
-    return form;
-}
-
-function generatePayslipFor(idx) {
-    var r = _payrollRows[idx];
-    if (!r) return;
-    var form = buildPayslipForm(r, '_blank');
     document.body.appendChild(form);
     form.submit();
     setTimeout(function () { try { form.remove(); } catch (e) {} }, 1500);
-    r.generated = true;
-    renderPayroll(_payrollData);
+    setTimeout(loadPayroll, 1800);
 }
 
-function generateAllPending() {
-    var pending = _payrollRows.filter(function (r) { return !r.generated; });
-    if (!pending.length) { alert('All payslips for this month are already generated.'); return; }
-    if (!confirm('Generate ' + pending.length + ' payslip(s) for ' + _payrollData.month
-        + '?\n\nEach is recorded in History, marks its Activity Log entries paid, and (if an advance is outstanding) records the advance recovery.')) return;
+function payrollGenerateAll() {
+    var acc = payrollAccountId();
+    if (!acc && !confirm('No paying account is selected, so the first bank or cash account will be '
+        + 'used.\n\nContinue anyway?')) return;
 
-    var iframe = document.getElementById('payroll-sink');
-    if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.name = 'payroll-sink'; iframe.id = 'payroll-sink'; iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-    }
-    var queue = pending.slice();
-    (function next() {
-        if (!queue.length) { setTimeout(loadPayroll, 700); return; }
-        var r = queue.shift();
-        var form = buildPayslipForm(r, 'payroll-sink');
-        document.body.appendChild(form);
-        iframe.onload = function () { try { form.remove(); } catch (e) {} setTimeout(next, 300); };
-        form.submit();
-    })();
+    var emps = payrollSelectedEmployees();
+    var who = emps.length ? emps.length + ' selected employee(s)' : 'every employee';
+    if (!confirm('Generate and post payslips for ' + who + ' from ' + monthLabel(payrollState.from)
+        + ' to ' + monthLabel(payrollState.to) + '?\n\nEach one is booked straight into the ledger. '
+        + 'Months that already have a payslip are left alone.')) return;
+
+    var btn = document.getElementById('payroll-genall');
+    btn.disabled = true;
+    btn.textContent = 'Working…';
+
+    apiPost('payslips-api.php', {
+        action: 'generate',
+        from_period: payrollState.from,
+        to_period:   payrollState.to,
+        employees:   emps,
+        account_id:  acc,
+        skip_existing: true,
+    }).then(function (d) {
+        if (d.error) { payrollAlert(esc(d.error), false); loadPayroll(); return; }
+        var made = (d.generated || []).length;
+        var msg = '<strong>Generated and posted ' + made + ' payslip'
+                + (made === 1 ? '' : 's') + '.</strong>';
+        if ((d.skipped || []).length) msg += ' ' + d.skipped.length + ' already existed.';
+        if ((d.failed || []).length) {
+            msg += '<br>Could not do ' + d.failed.length + ': '
+                 + d.failed.map(function (f) {
+                       return esc(f.employee + ' ' + f.period + ' — ' + f.error);
+                   }).join('; ');
+            payrollAlert(msg, false);
+        } else {
+            payrollAlert(msg, true);
+        }
+        loadPayroll();
+    }).catch(function (e) {
+        payrollAlert('Could not generate: ' + esc(e.message || e), false);
+        loadPayroll();
+    });
 }
 
-function openPostSalaries() {
-    if (!_payrollData) { alert('Load a month first.'); return; }
-    document.getElementById('pp-month').textContent = monthLabel(_payrollData.month);
-    document.getElementById('pp-result').style.display = 'none';
-    var sel = document.getElementById('pp-account');
-    sel.innerHTML = '<option value="">— Select account —</option>';
-    fetch('accounts-api.php')
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-            (d.accounts || []).forEach(function (a) {
-                var n = (a.name || '').toLowerCase();
-                if (n === 'employee advances' || n === 'loans receivable') return;
-                sel.add(new Option(a.name + ' (' + a.currency + ')', a.id));
-            });
-        });
-    var card = document.getElementById('payroll-post-card');
-    card.style.display = 'block';
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+// One document containing every slip in the range, so a single print produces
+// a single PDF rather than one file per employee per month.
+function payrollDownloadAll() {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'payslip-bulk.php';
+    form.target = '_blank';
+    form.style.display = 'none';
+
+    var fields = {
+        _csrf: CSRF,
+        from_period: payrollState.from,
+        to_period:   payrollState.to,
+        account_id:  payrollAccountId(),
+    };
+    Object.keys(fields).forEach(function (k) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = k; inp.value = fields[k];
+        form.appendChild(inp);
+    });
+    payrollSelectedEmployees().forEach(function (n) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = 'employees[]'; inp.value = n;
+        form.appendChild(inp);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(function () { try { form.remove(); } catch (e) {} }, 1500);
 }
 
-function closePostSalaries() {
-    document.getElementById('payroll-post-card').style.display = 'none';
-}
+function payrollPostUnposted() {
+    var acc = payrollAccountId();
+    if (!acc) { payrollAlert('Pick the account salaries are paid from first.', false); return; }
+    if (!confirm('Post every payslip in this range that has not reached the ledger yet?')) return;
 
-function confirmPostSalaries() {
-    if (!_payrollData) return;
-    var account = document.getElementById('pp-account').value;
-    if (!account) { alert('Pick a source account first.'); return; }
-    if (!confirm('Post net salaries for ' + _payrollData.month + ' to Finances?\n\nEach employee\'s net pay is recorded as an expense in their salary category. Already-posted employees are skipped.')) return;
-
-    apiPost('payroll-post-api.php', { action: 'post', month: _payrollData.month, account_id: account })
-        .then(function (res) {
-            if (res.error) { alert(res.error); return; }
-            var msg = '<strong>Posted ' + res.posted.length + ' salary expense(s)'
-                    + (res.amount_total ? ' — Rs. ' + numFmt(res.amount_total) : '') + '.</strong>';
-            if (res.skipped.length)     msg += ' ' + res.skipped.length + ' already posted this month.';
-            if (res.no_category.length) msg += ' No salary category for: ' + esc(res.no_category.join(', '))
-                                             + ' — create them in Finance Setup → “sync salary categories”.';
-            var el = document.getElementById('pp-result');
-            el.innerHTML = msg;
-            el.style.display = 'block';
-        })
-        .catch(function () { alert('Could not post salaries.'); });
+    apiPost('payslips-api.php', {
+        action: 'post_range',
+        from_period: payrollState.from,
+        to_period:   payrollState.to,
+        account_id:  acc,
+    }).then(function (d) {
+        if (d.error) { payrollAlert(esc(d.error), false); return; }
+        var n = (d.posted || []).length;
+        payrollAlert(n ? ('<strong>Posted ' + n + ' payslip' + (n === 1 ? '' : 's') + ' to the ledger.</strong>')
+                       : 'Everything in this range was already posted.', true);
+        loadPayroll();
+    });
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────
@@ -2376,6 +2885,8 @@ function showTab(tab, el) {
         activity:     'Activity Log',
         team:         'Manage Team',
         finances:     'Finances',
+        accounting:   'Accounting',
+        recurring:    'Recurring Entries',
         reports:      'Reports & Analytics',
         payroll:      'Payroll Run',
         'fin-setup':  'Finance Setup',
@@ -2386,6 +2897,8 @@ function showTab(tab, el) {
     if (tab === 'history')     loadHistoryTab();
     if (tab === 'activity')    loadActivityList();
     if (tab === 'finances')    loadFinancesTab();
+    if (tab === 'accounting')  initAccounting();
+    if (tab === 'recurring')   loadRecurring();
     if (tab === 'reports')     loadReports();
     if (tab === 'payroll')     loadPayroll();
     if (tab === 'fin-setup')   loadFinanceSetupTab();
@@ -3194,8 +3707,74 @@ function renderSplits(groups) {
         '<tbody>' + rows + '</tbody></table>';
 }
 
+// ── Company & accounting settings ─────────────────────────────────────────
+function loadSettings() {
+    return fetch('settings-api.php')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (d.error) return;
+            applySettings(d);
+        })
+        .catch(function () {});
+}
+
+function applySettings(d) {
+    var s = d.settings || {};
+    var set = function (id, v) { var e = document.getElementById(id); if (e) e.value = v == null ? '' : v; };
+    set('set-company-name',    s.company_name);
+    set('set-company-ntn',     s.company_ntn);
+    set('set-company-address', s.company_address);
+    set('set-fy-month',        s.fiscal_year_start_month || '7');
+    set('set-currency',        s.base_currency || 'PKR');
+
+    // Both pickers offer an explicit "decide for me" so the saved value can be
+    // cleared, not just changed.
+    ['set-payroll-account', 'set-statutory-account'].forEach(function (id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— pick automatically —</option>'
+            + (d.accounts || []).filter(function (a) { return !a.archived; })
+                .map(function (a) {
+                    return '<option value="' + escFin(a.id) + '">' + escFin(a.name)
+                         + ' (' + escFin(a.currency) + ')</option>';
+                }).join('');
+    });
+    set('set-payroll-account',   s.payroll_account_id);
+    set('set-statutory-account', s.statutory_account_id);
+
+    var cb = document.getElementById('set-autopost');
+    if (cb) cb.checked = (s.payroll_autopost || '1') === '1';
+}
+
+function saveSettings(ev) {
+    ev.preventDefault();
+    var g = function (id) { var e = document.getElementById(id); return e ? e.value : ''; };
+    apiPost('settings-api.php', {
+        action: 'save',
+        settings: {
+            company_name:            g('set-company-name'),
+            company_ntn:             g('set-company-ntn'),
+            company_address:         g('set-company-address'),
+            fiscal_year_start_month: g('set-fy-month'),
+            base_currency:           g('set-currency'),
+            payroll_account_id:      g('set-payroll-account'),
+            statutory_account_id:    g('set-statutory-account'),
+            payroll_autopost:        document.getElementById('set-autopost').checked ? '1' : '0',
+        },
+    }).then(function (d) {
+        if (d.error) return setupAlert('settings-alert', d.error, false);
+        var n = (d.changed || []).length;
+        setupAlert('settings-alert', n ? ('Saved ' + n + ' change' + (n === 1 ? '' : 's') + '.')
+                                       : 'Nothing had changed.', true);
+        // The response carries the whole settings payload back, so the form
+        // rebinds from what was actually stored rather than what was typed.
+        applySettings(d);
+    });
+}
+
 // ── Finance Setup tab ─────────────────────────────────────────────────────
 function loadFinanceSetupTab() {
+    loadSettings();
     return fetch('books-api.php')
         .then(function(r) { return r.json(); })
         .then(function(d) {
@@ -3653,6 +4232,926 @@ function setupSyncEmployeeCategories() {
                                    : 'No new categories — all employees already have one.';
         setupAlert('setup-categories-alert', msg, true);
         loadFinanceSetupTab();
+    });
+}
+
+// ── Accounting ────────────────────────────────────────────────────────────
+// Every report on this screen reads the same period, chosen once at the top,
+// so switching between the P&L and the trial balance can never quietly compare
+// two different spans. The server echoes back the range it actually used and
+// that is what gets displayed — the label is never derived from the buttons.
+
+var ACCT_PRESETS = [
+    ['this_month',    'This month'],
+    ['last_month',    'Last month'],
+    ['last_3_months', 'Last 3 months'],
+    ['this_quarter',  'This quarter'],
+    ['this_fy',       'This FY'],
+    ['last_fy',       'Last FY'],
+    ['all_time',      'All time'],
+];
+
+var acctState = {
+    preset:   'this_fy',
+    from:     '',
+    to:       '',
+    book:     'business',
+    sub:      'overview',
+    started:  false,
+    range:    null,
+    accounts: [],
+};
+
+function acctAlert(msg, ok) {
+    var el = document.getElementById('acct-alert');
+    el.className = 'team-alert ' + (ok ? 'success' : 'error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    if (ok) setTimeout(function () { el.style.display = 'none'; }, 4000);
+}
+
+function initAccounting() {
+    if (!acctState.started) {
+        var wrap = document.getElementById('acct-presets');
+        wrap.innerHTML = ACCT_PRESETS.map(function (p) {
+            return '<button type="button" class="range-preset' + (p[0] === acctState.preset ? ' active' : '')
+                 + '" data-preset="' + p[0] + '" onclick="acctPreset(\'' + p[0] + '\')">' + escFin(p[1]) + '</button>';
+        }).join('');
+        acctState.started = true;
+    }
+    // The ledger and statement views need the account list to build their
+    // pickers, so it is fetched once up front rather than mid-render.
+    acctLoadAccounts().then(acctReload, acctReload);
+}
+
+function acctPreset(preset) {
+    acctState.preset = preset;
+    document.querySelectorAll('#acct-presets .range-preset').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.preset === preset);
+    });
+    document.getElementById('acct-from').value = '';
+    document.getElementById('acct-to').value = '';
+    acctReload();
+}
+
+// Typing a date means the presets no longer describe what is shown, so they
+// stop being highlighted rather than leaving a stale one lit.
+function acctCustom() {
+    var f = document.getElementById('acct-from').value;
+    var t = document.getElementById('acct-to').value;
+    if (!f || !t) return;
+    acctState.preset = 'custom';
+    acctState.from = f;
+    acctState.to = t;
+    document.querySelectorAll('#acct-presets .range-preset').forEach(function (b) {
+        b.classList.remove('active');
+    });
+    acctReload();
+}
+
+function acctSub(name) {
+    acctState.sub = name;
+    document.querySelectorAll('#tab-accounting .fin-subtab').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.sub === name);
+    });
+    acctReload();
+}
+
+function acctQuery(extra) {
+    var p = ['preset=' + encodeURIComponent(acctState.preset), 'book=' + encodeURIComponent(acctState.book)];
+    if (acctState.preset === 'custom') {
+        p.push('from=' + encodeURIComponent(acctState.from));
+        p.push('to='   + encodeURIComponent(acctState.to));
+    }
+    for (var k in (extra || {})) {
+        if (extra[k] !== '' && extra[k] != null) p.push(k + '=' + encodeURIComponent(extra[k]));
+    }
+    return p.join('&');
+}
+
+function acctFetch(report, extra) {
+    var e = extra || {};
+    e.report = report;
+    return fetch('accounting-api.php?' + acctQuery(e)).then(function (r) { return r.json(); });
+}
+
+function acctExportUrl(report, extra) {
+    var e = extra || {};
+    e.report = report;
+    e.format = 'csv';
+    return 'accounting-api.php?' + acctQuery(e);
+}
+
+function acctReload() {
+    acctState.book = document.getElementById('acct-book').value;
+    var body = document.getElementById('acct-body');
+    body.innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
+
+    var sub = acctState.sub;
+    var renderers = {
+        overview:  acctRenderOverview,
+        pl:        acctRenderPl,
+        trial:     acctRenderTrial,
+        ledger:    acctRenderLedger,
+        statement: acctRenderStatement,
+        expenses:  acctRenderExpenses,
+        payroll:   acctRenderPayroll,
+        health:    acctRenderHealth,
+        pack:      acctRenderPack,
+    };
+    var reportFor = {
+        overview: 'overview', pl: 'pl', trial: 'trial_balance', ledger: 'ledger',
+        statement: 'account_statement', expenses: 'expense_matrix',
+        payroll: 'payroll_register', health: 'issues', pack: 'overview',
+    };
+
+    // The statement needs an account chosen before it can ask for anything.
+    if (sub === 'statement' && !acctState.statementAccount) {
+        acctLoadAccounts().then(function () { acctRenderStatement(null); });
+        return;
+    }
+
+    var extra = {};
+    if (sub === 'statement') extra.account_id = acctState.statementAccount;
+    if (sub === 'ledger')    extra = acctLedgerFilters();
+
+    acctFetch(reportFor[sub], extra).then(function (d) {
+        if (d.error) { body.innerHTML = '<p class="rep-empty">' + escFin(d.error) + '</p>'; return; }
+        if (d.range) {
+            acctState.range = d.range;
+            document.getElementById('acct-range-label').textContent = d.range.label
+                + ' (' + d.range.from + ' → ' + d.range.to + ')';
+        }
+        (renderers[sub] || acctRenderOverview)(d);
+    }).catch(function (err) {
+        body.innerHTML = '<p class="rep-empty">Could not load: ' + escFin(err.message || err) + '</p>';
+    });
+}
+
+function acctLoadAccounts() {
+    if (acctState.accounts.length) return Promise.resolve(acctState.accounts);
+    return fetch('accounts-api.php').then(function (r) { return r.json(); }).then(function (d) {
+        acctState.accounts = d.accounts || [];
+        return acctState.accounts;
+    });
+}
+
+// ── Shared render helpers ────────────────────────────────────────────────
+
+function acctMoney(v, cur) {
+    return fmtMoney(v || 0, cur || 'PKR');
+}
+
+function acctSigned(v, cur) {
+    var cls = v < 0 ? 'neg' : (v > 0 ? 'pos' : '');
+    return '<span class="' + cls + '">' + acctMoney(v, cur) + '</span>';
+}
+
+function acctExportBar(report, extra, note) {
+    return '<div class="section-head" style="margin-bottom:14px;">'
+         + '<div style="font-size:12px;color:var(--text-muted);">' + (note || '') + '</div>'
+         + '<a class="finance-export" href="' + acctExportUrl(report, extra) + '">&#8681; Export CSV</a></div>';
+}
+
+function acctStat(label, value, sub, cls) {
+    return '<div class="stat-cell"><div class="sc-label">' + escFin(label) + '</div>'
+         + '<div class="sc-value ' + (cls || '') + '">' + value + '</div>'
+         + (sub ? '<div class="sc-sub">' + sub + '</div>' : '') + '</div>';
+}
+
+// ── Overview ─────────────────────────────────────────────────────────────
+
+function acctRenderOverview(d) {
+    var cur = d.currency || 'PKR';
+    var t = d.totals || {};
+    var b = d.balances || {};
+    var h = '';
+
+    h += '<div class="stat-strip">'
+       + acctStat('Income',   acctMoney(t.income, cur))
+       + acctStat('Expenses', acctMoney(t.expense, cur))
+       + acctStat('Net',      acctMoney(t.net, cur), null, (t.net || 0) < 0 ? 'neg' : 'pos')
+       // Plain text — acctStat escapes the label, so an entity here would show
+       // up on screen as the literal "&amp;".
+       + acctStat('Cash & bank', acctMoney((b.assets || {}).total, cur), 'at period end')
+       + acctStat('Owed to you',  acctMoney((b.receivables || {}).total, cur), 'advances &amp; loans')
+       // Liabilities carry a negative balance, so the server sends `owed` as
+       // the positive amount actually due.
+       + acctStat('You owe',      acctMoney((b.liabilities || {}).owed, cur), 'PF, EOBI, tax withheld')
+       + '</div>';
+
+    h += '<div class="card"><div class="card-title" style="margin-bottom:4px;">Money in and out by month</div>'
+       + acctCashFlowChart(d.cash_flow || [], cur) + '</div>';
+
+    h += '<div class="dash-cols" style="margin-top:18px;">';
+
+    h += '<div class="card"><div class="card-title" style="margin-bottom:14px;">Where the money went</div>';
+    var top = d.top_expense_categories || [];
+    if (!top.length) {
+        h += '<p class="emp-empty">Nothing recorded in this period.</p>';
+    } else {
+        var max = Math.max.apply(null, top.map(function (r) { return r.total; }));
+        h += '<div class="hbar-list">' + top.map(function (r) {
+            return '<div class="hbar-row"><div class="hbar-name">' + escFin(r.category) + '</div>'
+                 + '<div class="hbar-track"><div class="hbar-fill" style="width:'
+                 + (max > 0 ? Math.round(r.total / max * 100) : 0) + '%"></div></div>'
+                 + '<div class="hbar-amt">' + acctMoney(r.total, cur) + '</div></div>';
+        }).join('') + '</div>';
+    }
+    h += '</div>';
+
+    h += '<div>';
+    var pr = (d.payroll || {}).totals || {};
+    h += '<div class="card"><div class="card-title" style="margin-bottom:12px;">Payroll this period</div>'
+       + '<div style="font-size:13px;line-height:2;color:var(--text-muted);">'
+       + 'Payslips issued <strong style="color:var(--text);float:right;">' + (pr.count || 0) + '</strong><br>'
+       + 'Gross <strong style="color:var(--text);float:right;">' + acctMoney(pr.gross, cur) + '</strong><br>'
+       + 'Paid out <strong style="color:var(--text);float:right;">' + acctMoney(pr.net, cur) + '</strong><br>'
+       + 'Withheld <strong style="color:var(--text);float:right;">' + acctMoney(pr.statutory, cur) + '</strong>'
+       + '</div></div>';
+
+    var issues = d.issues || [];
+    h += '<div class="card" style="margin-top:18px;"><div class="card-title" style="margin-bottom:12px;">Books health</div>';
+    if (!issues.length) {
+        h += '<div class="health-clear">&#10003; Nothing looks wrong in this period.</div>';
+    } else {
+        h += issues.map(function (i) {
+            return '<div class="health-item sev-' + escFin(i.severity) + '" style="padding:10px 12px;margin-bottom:8px;">'
+                 + '<div class="health-head"><span class="health-title" style="font-size:12.5px;">' + escFin(i.title) + '</span>'
+                 + '<span class="health-count">' + i.count + '</span></div></div>';
+        }).join('');
+        h += '<button class="health-toggle" onclick="acctSub(\'health\')">See the detail &rarr;</button>';
+    }
+    h += '</div></div></div>';
+
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+// Grouped bars: money in beside money out, one pair per month. Net is shown in
+// the tooltip rather than as a third bar — it is derived from the other two,
+// not a category of its own, and a third series would need a colour that no
+// longer passes the contrast checks the other two were chosen against.
+function acctCashFlowChart(rows, cur) {
+    if (!rows.length) return '<p class="emp-empty">No activity in this period.</p>';
+
+    var max = 0;
+    rows.forEach(function (r) { max = Math.max(max, r.income, r.expense); });
+    if (max <= 0) return '<p class="emp-empty">No activity in this period.</p>';
+
+    var h = '<div class="cf-chart">'
+          + '<div class="cf-legend">'
+          + '<span><i class="cf-swatch in"></i> Money in</span>'
+          + '<span><i class="cf-swatch out"></i> Money out</span>'
+          + '</div><div class="cf-plot">';
+
+    h += rows.map(function (r) {
+        var hi = Math.max(1, Math.round(r.income  / max * 100));
+        var ho = Math.max(1, Math.round(r.expense / max * 100));
+        return '<div class="cf-col">'
+             + '<div class="cf-tip"><b>' + escFin(r.label) + '</b><br>'
+             + '<span class="t-in">In</span> ' + acctMoney(r.income, cur) + '<br>'
+             + '<span class="t-out">Out</span> ' + acctMoney(r.expense, cur) + '<br>'
+             + 'Net ' + acctMoney(r.net, cur) + '</div>'
+             + '<div class="cf-bar in"  style="height:' + hi + '%"></div>'
+             + '<div class="cf-bar out" style="height:' + ho + '%"></div>'
+             + '</div>';
+    }).join('');
+
+    h += '</div><div class="cf-x">'
+       + rows.map(function (r) { return '<span>' + escFin(r.label.replace(' ', ' ')) + '</span>'; }).join('')
+       + '</div></div>';
+    return h;
+}
+
+// ── Profit & Loss ────────────────────────────────────────────────────────
+
+function acctRenderPl(d) {
+    var cur = d.currency || 'PKR';
+    var t = d.headline || { income: 0, expense: 0, net: 0 };
+    var change = (d.change || {})[cur] || {};
+    var h = acctExportBar('pl', {}, 'Cash basis. Transfers between your own accounts are excluded.');
+
+    h += '<div class="stat-strip">'
+       + acctStat('Income',   acctMoney(t.income, cur),  acctDelta(change.income, cur))
+       + acctStat('Expenses', acctMoney(t.expense, cur), acctDelta(change.expense, cur))
+       + acctStat('Net profit', acctMoney(t.net, cur),   acctDelta(change.net, cur),
+                  t.net < 0 ? 'neg' : 'pos')
+       + '</div>';
+
+    h += '<div class="card"><div class="rep-table-wrap"><table class="rep-table">'
+       + '<thead><tr><th>Category</th><th>Code</th><th class="num">Entries</th><th class="num">Amount</th></tr></thead><tbody>';
+
+    h += acctPlSection('Income', d.income || [], t.income, cur);
+    h += acctPlSection('Expenses', d.expense || [], t.expense, cur);
+    var prevLabel = ((d.previous || {}).range || {}).label || '';
+
+    h += '<tr class="rep-total"><td colspan="3">Net profit for the period</td>'
+       + '<td class="num">' + acctSigned(t.net, cur) + '</td></tr>';
+    h += '</tbody></table></div>';
+
+    if (prevLabel) {
+        h += '<p class="rep-note">Comparisons above are against <strong>' + escFin(prevLabel)
+           + '</strong>, the same length of time immediately before this period.</p>';
+    }
+
+    var others = Object.keys(d.totals || {}).filter(function (c) { return c !== cur; });
+    if (others.length) {
+        h += '<p class="rep-note"><strong>Note:</strong> there is also activity in '
+           + others.join(', ') + '. Those are reported separately and are not added into the '
+           + 'figures above &mdash; mixing currencies in one total would be meaningless.</p>';
+    }
+    h += '</div>';
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+function acctPlSection(title, rows, total, cur) {
+    var h = '<tr class="rep-subhead"><td colspan="4">' + title + '</td></tr>';
+    if (!rows.length) {
+        return h + '<tr><td colspan="4" style="color:var(--text-faint);">Nothing recorded</td></tr>';
+    }
+    h += rows.filter(function (r) { return r.currency === cur; }).map(function (r) {
+        return '<tr><td>' + escFin(r.category)
+             + (r.tax_deductible === false ? ' <span class="status-pill status-voided">not claimable</span>' : '')
+             + '</td><td class="rep-code">' + escFin(r.code || '') + '</td>'
+             + '<td class="num">' + r.count + '</td>'
+             + '<td class="num">' + acctMoney(r.total, cur) + '</td></tr>';
+    }).join('');
+    h += '<tr class="rep-total"><td colspan="3">Total ' + title.toLowerCase() + '</td>'
+       + '<td class="num">' + acctMoney(total, cur) + '</td></tr>';
+    return h;
+}
+
+// The server sends percent as null rather than Infinity when the previous
+// period was zero, so there is nothing sensible to divide by and the figure
+// itself is shown instead.
+function acctDelta(ch, cur) {
+    if (!ch) return '';
+    if (ch.percent === null || ch.percent === undefined) {
+        return ch.previous ? '' : 'nothing in the period before';
+    }
+    var arrow = ch.direction === 'up' ? '↑' : (ch.direction === 'down' ? '↓' : '');
+    return arrow + ' ' + Math.abs(ch.percent).toFixed(1) + '% vs ' + acctMoney(ch.previous, cur);
+}
+
+// ── Trial balance ────────────────────────────────────────────────────────
+
+function acctRenderTrial(d) {
+    var h = acctExportBar('trial_balance', {},
+        'Opening balance, movement and closing balance for every account.');
+
+    var checks = d.checks || {};
+    var bad = (d.warnings || []).length > 0;
+    h += '<div class="health-item ' + (bad ? 'sev-error' : '') + '" style="'
+       + (bad ? '' : 'background:var(--success-soft);border-left-color:var(--success);') + '">'
+       + '<div class="health-head"><span class="health-title">'
+       + (bad ? 'These books do not balance' : '✓ These books balance')
+       + '</span></div><div class="health-detail">';
+    Object.keys(checks).forEach(function (c) {
+        var k = checks[c];
+        h += c + ': accounts moved ' + acctMoney(k.account_movement, c)
+           + ', net profit was ' + acctMoney(k.net_profit, c)
+           + (k.balanced ? ' — agreed.' : ' — out by ' + acctMoney(k.difference, c) + '.') + '<br>';
+    });
+    if (bad) h += '<br>' + (d.warnings || []).map(escFin).join('<br>');
+    h += '</div></div>';
+
+    h += '<div class="card"><div class="card-title" style="margin-bottom:14px;">Accounts</div>'
+       + '<div class="rep-table-wrap"><table class="rep-table"><thead><tr>'
+       + '<th>Account</th><th>Kind</th><th class="num">Opening</th><th class="num">In</th>'
+       + '<th class="num">Out</th><th class="num">Closing</th></tr></thead><tbody>';
+
+    var accs = d.accounts || [];
+    if (!accs.length) {
+        h += '<tr><td colspan="6" class="rep-empty">No account activity in this period.</td></tr>';
+    } else {
+        h += accs.map(function (a) {
+            return '<tr><td>' + escFin(a.name) + '</td>'
+                 + '<td><span class="status-pill status-voided">' + escFin(a.kind) + '</span></td>'
+                 + '<td class="num">' + acctMoney(a.opening, a.currency) + '</td>'
+                 + '<td class="num">' + (a.debit  ? acctMoney(a.debit,  a.currency) : '—') + '</td>'
+                 + '<td class="num">' + (a.credit ? acctMoney(a.credit, a.currency) : '—') + '</td>'
+                 + '<td class="num"><strong>' + acctMoney(a.closing, a.currency) + '</strong></td></tr>';
+        }).join('');
+    }
+    h += '</tbody></table></div>';
+    h += '<p class="rep-note">A liability such as <strong>Statutory Payables</strong> shows as a '
+       + 'negative balance &mdash; that is money you are holding for someone else, so the amount '
+       + 'you owe is the figure without its minus sign.</p></div>';
+
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+// ── General ledger ───────────────────────────────────────────────────────
+
+function acctLedgerFilters() {
+    var g = function (id) { var e = document.getElementById(id); return e ? e.value : ''; };
+    return {
+        account_id:  g('led-account'),
+        type:        g('led-type'),
+        search:      g('led-search'),
+        include_void: document.getElementById('led-void') && document.getElementById('led-void').checked ? 1 : '',
+    };
+}
+
+function acctRenderLedger(d) {
+    var f = acctLedgerFilters();
+    var h = '<div class="card"><div class="finance-controls">'
+          + '<select id="led-account" onchange="acctReload()"><option value="">All accounts</option>'
+          + acctState.accounts.map(function (a) {
+                return '<option value="' + escFin(a.id) + '"' + (a.id === f.account_id ? ' selected' : '') + '>'
+                     + escFin(a.name) + '</option>';
+            }).join('')
+          + '</select>'
+          + '<select id="led-type" onchange="acctReload()">'
+          + ['', 'income', 'expense', 'transfer_in', 'transfer_out'].map(function (t) {
+                var lbl = t === '' ? 'All types' : t.replace('_', ' ');
+                return '<option value="' + t + '"' + (t === f.type ? ' selected' : '') + '>' + lbl + '</option>';
+            }).join('')
+          + '</select>'
+          + '<input type="text" id="led-search" placeholder="Search notes or counterparty" value="'
+          + escFin(f.search) + '" onchange="acctReload()" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;font:inherit;">'
+          + '<label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">'
+          + '<input type="checkbox" id="led-void" onchange="acctReload()"' + (f.include_void ? ' checked' : '') + '> show voided</label>'
+          + '<a class="finance-export" href="' + acctExportUrl('ledger', f) + '">&#8681; Export CSV</a>'
+          + '</div>';
+
+    var rows = d.entries || [];
+    var t = d.totals || {};
+    h += '<div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;">'
+       + rows.length + ' entries — in ' + acctMoney(t.income) + ', out ' + acctMoney(t.expense)
+       + ', net ' + acctMoney(t.net) + '</div>';
+
+    h += '<div class="rep-table-wrap"><table class="rep-table"><thead><tr>'
+       + '<th>Date</th><th>Account</th><th>Category</th><th>Counterparty</th>'
+       + '<th>Description</th><th class="num">Amount</th></tr></thead><tbody>';
+
+    if (!rows.length) {
+        h += '<tr><td colspan="6" class="rep-empty">Nothing matches those filters.</td></tr>';
+    } else {
+        h += rows.map(function (e) {
+            return '<tr' + (e.void ? ' style="opacity:.45;text-decoration:line-through;"' : '') + '>'
+                 + '<td style="white-space:nowrap;color:var(--text-faint);">' + escFin(e.date) + '</td>'
+                 + '<td>' + escFin(e.account_name) + '</td>'
+                 + '<td>' + escFin(e.category_name || '—') + '</td>'
+                 + '<td>' + escFin(e.counterparty || '—') + '</td>'
+                 + '<td>' + escFin(e.description || '') + (e.source === 'payroll'
+                     ? ' <span class="status-pill status-posted">payroll</span>' : '')
+                   + (e.source === 'recurring' ? ' <span class="status-pill status-pending">recurring</span>' : '')
+                 + '</td>'
+                 + '<td class="num">' + acctSigned(e.signed, e.currency) + '</td></tr>';
+        }).join('');
+    }
+    h += '</tbody></table></div></div>';
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+// ── Account statement ────────────────────────────────────────────────────
+
+function acctRenderStatement(d) {
+    var h = '<div class="card"><div class="finance-controls">'
+          + '<select id="stmt-account" onchange="acctPickStatement(this.value)">'
+          + '<option value="">— Choose an account —</option>'
+          + acctState.accounts.map(function (a) {
+                return '<option value="' + escFin(a.id) + '"'
+                     + (a.id === acctState.statementAccount ? ' selected' : '') + '>'
+                     + escFin(a.name) + '</option>';
+            }).join('')
+          + '</select>';
+    if (acctState.statementAccount) {
+        h += '<a class="finance-export" href="'
+           + acctExportUrl('account_statement', { account_id: acctState.statementAccount })
+           + '">&#8681; Export CSV</a>';
+    }
+    h += '</div>';
+
+    if (!d || !d.account) {
+        h += '<p class="emp-empty">Pick an account to see its statement &mdash; opening balance, '
+           + 'every movement, and a running balance you can tie against a bank statement.</p></div>';
+        document.getElementById('acct-body').innerHTML = h;
+        return;
+    }
+
+    var cur = d.account.currency;
+    h += '<div class="stat-strip">'
+       + acctStat('Opening balance', acctMoney(d.opening, cur), escFin(d.from))
+       + acctStat('Money in',  acctMoney((d.totals || {}).income + (d.totals || {}).transfer_in, cur))
+       + acctStat('Money out', acctMoney((d.totals || {}).expense + (d.totals || {}).transfer_out, cur))
+       + acctStat('Closing balance', acctMoney(d.closing, cur), escFin(d.to))
+       + '</div>';
+
+    h += '<div class="rep-table-wrap"><table class="rep-table"><thead><tr>'
+       + '<th>Date</th><th>Description</th><th>Category</th>'
+       + '<th class="num">In</th><th class="num">Out</th><th class="num">Balance</th></tr></thead><tbody>'
+       + '<tr><td colspan="5" style="color:var(--text-faint);">Opening balance</td>'
+       + '<td class="num"><strong>' + acctMoney(d.opening, cur) + '</strong></td></tr>';
+
+    (d.entries || []).forEach(function (e) {
+        var inAmt  = e.signed > 0 ? e.amount : 0;
+        var outAmt = e.signed < 0 ? e.amount : 0;
+        h += '<tr><td style="white-space:nowrap;color:var(--text-faint);">' + escFin(e.date) + '</td>'
+           + '<td>' + escFin(e.description || e.counterparty || '—') + '</td>'
+           + '<td>' + escFin(e.category_name || '—') + '</td>'
+           + '<td class="num">' + (inAmt  ? acctMoney(inAmt, cur)  : '') + '</td>'
+           + '<td class="num">' + (outAmt ? acctMoney(outAmt, cur) : '') + '</td>'
+           + '<td class="num">' + acctMoney(e.running_balance, cur) + '</td></tr>';
+    });
+
+    h += '<tr class="rep-total"><td colspan="5">Closing balance</td>'
+       + '<td class="num">' + acctMoney(d.closing, cur) + '</td></tr>';
+    h += '</tbody></table></div></div>';
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+function acctPickStatement(id) {
+    acctState.statementAccount = id;
+    if (!id) { acctRenderStatement(null); return; }
+    acctReload();
+}
+
+// ── Expenses by month ────────────────────────────────────────────────────
+
+function acctRenderExpenses(d) {
+    var months = d.months || [];
+    var h = acctExportBar('expense_matrix', {},
+        'Every expense category against every month, so a cost that jumped is easy to spot.');
+
+    h += '<div class="card"><div class="matrix-wrap"><table class="matrix-table"><thead><tr>'
+       + '<th class="mx-head-name">Category</th>'
+       + months.map(function (m) {
+             return '<th>' + escFin(m.slice(5) + '/' + m.slice(2, 4)) + '</th>';
+         }).join('')
+       + '<th>Total</th></tr></thead><tbody>';
+
+    var rows = d.rows || [];
+    if (!rows.length) {
+        h += '<tr><td class="mx-name" colspan="' + (months.length + 2) + '">No expenses in this period.</td></tr>';
+    } else {
+        h += rows.map(function (r) {
+            return '<tr><td class="mx-name">' + escFin(r.category) + '</td>'
+                 + months.map(function (m) {
+                       var v = r.by_month[m] || 0;
+                       return '<td' + (v ? '' : ' class="mx-zero"') + '>' + (v ? acctMoney(v) : '—') + '</td>';
+                   }).join('')
+                 + '<td><strong>' + acctMoney(r.total) + '</strong></td></tr>';
+        }).join('');
+        h += '<tr class="rep-total"><td class="mx-name">Total</td>'
+           + months.map(function (m) { return '<td>' + acctMoney((d.month_totals || {})[m] || 0) + '</td>'; }).join('')
+           + '<td>' + acctMoney(d.grand_total) + '</td></tr>';
+    }
+    h += '</tbody></table></div></div>';
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+// ── Payroll register ─────────────────────────────────────────────────────
+
+function acctRenderPayroll(d) {
+    var reg = d.register || d;
+    var rec = d.reconciliation || {};
+    var t = reg.totals || {};
+    var h = acctExportBar('payroll_register', {},
+        'Every payslip issued in this period, and whether the ledger agrees.');
+
+    h += '<div class="stat-strip">'
+       + acctStat('Payslips', (t.count || 0))
+       + acctStat('Gross',    acctMoney(t.gross))
+       + acctStat('Withheld', acctMoney(t.statutory), 'PF, EOBI, tax')
+       + acctStat('Advances recovered', acctMoney(t.loan))
+       + acctStat('Net paid', acctMoney(t.net))
+       + '</div>';
+
+    if (rec && rec.matches === false) {
+        h += '<div class="health-item sev-error"><div class="health-head">'
+           + '<span class="health-title">Payslips and the ledger disagree</span></div>'
+           + '<div class="health-detail">The payslips add up to ' + acctMoney(rec.expected_from_payslips)
+           + ' of salary cost, but the ledger holds ' + acctMoney(rec.in_ledger)
+           + ' &mdash; a difference of ' + acctMoney(rec.difference) + '.<br><br>'
+           + (rec.unposted_count
+                ? '<strong>' + rec.unposted_count + ' payslip(s) were never posted.</strong> '
+                + 'Post them from the Payroll screen.'
+                : 'Every payslip here is marked posted, so this is almost certainly payroll issued '
+                + 'before the ledger booked the full cost of employing someone: only net pay reached '
+                + 'the books, while the provident fund, EOBI, tax and any advance recovered did not. '
+                + 'Re-generating those months from the Payroll screen reverses the old entry and '
+                + 'books all of it. Failing that, check whether a salary was also typed in by hand.')
+           + '</div></div>';
+    } else if (rec && rec.matches === true) {
+        h += '<div class="health-item" style="background:var(--success-soft);border-left-color:var(--success);">'
+           + '<div class="health-head"><span class="health-title">'
+           + '✓ Payslips and the ledger agree</span></div></div>';
+    }
+
+    h += '<div class="card"><div class="card-title" style="margin-bottom:14px;">By month</div>'
+       + '<div class="rep-table-wrap"><table class="rep-table"><thead><tr>'
+       + '<th>Month</th><th class="num">Slips</th><th class="num">Gross</th><th class="num">Withheld</th>'
+       + '<th class="num">Advance</th><th class="num">Penalty</th><th class="num">Net paid</th>'
+       + '</tr></thead><tbody>';
+    var months = reg.by_month || [];
+    if (!months.length) {
+        h += '<tr><td colspan="7" class="rep-empty">No payslips issued in this period.</td></tr>';
+    } else {
+        h += months.map(function (m) {
+            return '<tr><td>' + escFin(m.label) + '</td><td class="num">' + m.count + '</td>'
+                 + '<td class="num">' + acctMoney(m.gross) + '</td>'
+                 + '<td class="num">' + acctMoney(m.statutory) + '</td>'
+                 + '<td class="num">' + acctMoney(m.loan) + '</td>'
+                 + '<td class="num">' + acctMoney(m.penalty) + '</td>'
+                 + '<td class="num"><strong>' + acctMoney(m.net) + '</strong></td></tr>';
+        }).join('');
+    }
+    h += '</tbody></table></div></div>';
+
+    h += '<div class="card"><div class="card-title" style="margin-bottom:14px;">By person</div>'
+       + '<div class="rep-table-wrap"><table class="rep-table"><thead><tr>'
+       + '<th>Employee</th><th class="num">Slips</th><th class="num">Gross</th>'
+       + '<th class="num">Withheld</th><th class="num">Net paid</th></tr></thead><tbody>';
+    h += (reg.by_employee || []).map(function (p) {
+        return '<tr><td>' + escFin(p.employee) + '</td><td class="num">' + p.count + '</td>'
+             + '<td class="num">' + acctMoney(p.gross) + '</td>'
+             + '<td class="num">' + acctMoney(p.statutory) + '</td>'
+             + '<td class="num"><strong>' + acctMoney(p.net) + '</strong></td></tr>';
+    }).join('');
+    h += '</tbody></table></div></div>';
+
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+// ── Health ───────────────────────────────────────────────────────────────
+
+function acctRenderHealth(d) {
+    var issues = d.issues || [];
+    var h = '<div class="card"><div class="card-title" style="margin-bottom:6px;">Books health</div>'
+          + '<div class="card-subtitle">Everything a consultant would query before signing off. '
+          + 'Fix these before exporting the tax pack.</div>';
+
+    if (!issues.length) {
+        h += '<div class="health-clear">&#10003; Nothing to fix. Every transfer is paired, '
+           + 'everything is categorised, and no account is showing an impossible balance.</div>';
+    } else {
+        h += issues.map(function (i, idx) {
+            var rows = i.rows || [];
+            var s = '<div class="health-item sev-' + escFin(i.severity) + '">'
+                  + '<div class="health-head"><span class="health-title">' + escFin(i.title) + '</span>'
+                  + '<span class="health-count">' + i.count + '</span></div>'
+                  + '<div class="health-detail">' + escFin(i.detail) + '</div>';
+            if (rows.length) {
+                s += '<button class="health-toggle" onclick="acctToggleRows(' + idx + ')">'
+                   + 'Show the ' + Math.min(rows.length, 50) + ' entries &darr;</button>'
+                   + '<div class="health-rows" id="health-rows-' + idx + '" style="display:none;">'
+                   + '<div class="rep-table-wrap"><table class="rep-table"><tbody>'
+                   + rows.slice(0, 50).map(function (r) {
+                         return '<tr><td style="white-space:nowrap;">' + escFin(r.date || r.name || '') + '</td>'
+                              + '<td>' + escFin(r.account_name || r.counterparty || r.description || '') + '</td>'
+                              + '<td class="num">' + acctMoney(r.amount != null ? r.amount : r.balance) + '</td></tr>';
+                     }).join('')
+                   + '</tbody></table></div></div>';
+            }
+            return s + '</div>';
+        }).join('');
+    }
+    h += '</div>';
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+function acctToggleRows(idx) {
+    var el = document.getElementById('health-rows-' + idx);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── Tax pack ─────────────────────────────────────────────────────────────
+
+function acctRenderPack() {
+    var packs = [
+        ['tax_pack', 'Complete tax pack',
+         'Everything below in one file: profit &amp; loss, trial balance, payroll register, '
+         + 'closing balances and any outstanding issues. This is the one to send.'],
+        ['pl', 'Profit &amp; loss', 'Income and expenses by category for the period.'],
+        ['trial_balance', 'Trial balance', 'Opening, movement and closing for every account.'],
+        ['ledger', 'General ledger', 'Every single transaction, in date order.'],
+        ['payroll_register', 'Payroll register', 'Every payslip with its full breakdown.'],
+        ['expense_matrix', 'Expenses by month', 'Category against month.'],
+        ['cash_flow', 'Cash flow', 'Money in, money out and net, month by month.'],
+        ['counterparties', 'Who paid you, who you paid', 'Totals per client and per supplier.'],
+        ['advances', 'Advances &amp; loans', 'What each person still owes.'],
+    ];
+
+    var h = '<div class="card"><div class="card-title" style="margin-bottom:6px;">Send to your accountant</div>'
+          + '<div class="card-subtitle">Each file names the company, the period and the book in its '
+          + 'header, so they stay meaningful once they are sitting in someone else\'s inbox. '
+          + 'Period: <strong>' + escFin(acctState.range ? acctState.range.label : '') + '</strong>.</div>'
+          + '<div class="pack-grid">';
+
+    h += packs.map(function (p) {
+        return '<div class="pack-card"><h4>' + p[1] + '</h4><p>' + p[2] + '</p>'
+             + '<a class="finance-export" style="align-self:flex-start;" href="'
+             + acctExportUrl(p[0], {}) + '">&#8681; Download CSV</a></div>';
+    }).join('');
+
+    h += '</div></div>';
+    document.getElementById('acct-body').innerHTML = h;
+}
+
+// ── Recurring rules ──────────────────────────────────────────────────────
+
+var recEditingId = null;
+
+function recAlert(msg, ok) {
+    var el = document.getElementById('rec-alert');
+    el.className = 'team-alert ' + (ok ? 'success' : 'error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    if (ok) setTimeout(function () { el.style.display = 'none'; }, 4000);
+}
+
+function loadRecurring() {
+    var body = document.getElementById('rec-body');
+    body.innerHTML = '<p class="emp-empty">Loading&hellip;</p>';
+    Promise.all([
+        fetch('recurring-api.php').then(function (r) { return r.json(); }),
+        acctLoadAccounts(),
+        fetch('categories-api.php').then(function (r) { return r.json(); }).catch(function () { return { categories: [] }; }),
+    ]).then(function (res) {
+        var d = res[0];
+        if (d.error) { body.innerHTML = '<p class="rep-empty">' + escFin(d.error) + '</p>'; return; }
+        recCategories = (res[2] && res[2].categories) || [];
+        recRenderList(d);
+    });
+}
+
+var recCategories = [];
+
+function recRenderList(d) {
+    var rules = d.rules || [];
+    var due = d.due_count || 0;
+    var btn = document.getElementById('rec-run-all');
+    if (btn) {
+        btn.disabled = due === 0;
+        btn.textContent = due ? ('Post ' + due + ' due') : 'Nothing due';
+    }
+
+    if (!rules.length) {
+        document.getElementById('rec-body').innerHTML =
+            '<p class="emp-empty">No recurring rules yet. Add rent, internet or any other fixed '
+          + 'monthly amount and it will be booked for you instead of remembered.</p>';
+        return;
+    }
+
+    var h = '<div class="rep-table-wrap"><table class="rep-table"><thead><tr>'
+          + '<th>Rule</th><th>Account</th><th>Category</th><th class="num">Amount</th>'
+          + '<th>Day</th><th>Next due</th><th></th></tr></thead><tbody>';
+
+    h += rules.map(function (r) {
+        var missed = (r.missed_periods || []).length;
+        return '<tr' + (r.active ? '' : ' style="opacity:.5;"') + '>'
+             + '<td><strong>' + escFin(r.name) + '</strong>'
+             + '<span class="fin-meta">' + escFin(r.counterparty || r.description || '') + '</span></td>'
+             + '<td>' + escFin(r.account_name || '') + '</td>'
+             + '<td>' + escFin(r.category_name || '—') + '</td>'
+             + '<td class="num"><span class="' + (r.type === 'income' ? 'pos' : '') + '">'
+             + acctMoney(r.amount, r.currency) + '</span></td>'
+             + '<td>' + escFin(String(r.day_of_month)) + '</td>'
+             + '<td>' + (r.is_due
+                   ? '<span class="status-pill status-pending">' + (missed > 1 ? missed + ' months due' : 'due now') + '</span>'
+                   : escFin(r.next_due_period || '—')) + '</td>'
+             + '<td class="fin-actions">'
+             + (r.is_due ? '<button class="btn-edit" onclick="recRun(\'' + escFin(r.id) + '\')">Post now</button> ' : '')
+             + '<button class="btn-edit" onclick="recEdit(\'' + escFin(r.id) + '\')">Edit</button> '
+             + '<button class="btn-edit" onclick="recToggle(\'' + escFin(r.id) + '\',' + (r.active ? 0 : 1) + ')">'
+             + (r.active ? 'Pause' : 'Resume') + '</button> '
+             + '<button class="btn-delete" onclick="recDelete(\'' + escFin(r.id) + '\')">Delete</button>'
+             + '</td></tr>';
+    }).join('');
+
+    h += '</tbody></table></div>';
+    document.getElementById('rec-body').innerHTML = h;
+    recRules = rules;
+}
+
+var recRules = [];
+
+function recOpenForm() {
+    recEditingId = null;
+    document.getElementById('rec-form-title').textContent = 'New recurring rule';
+    document.getElementById('rec-form').reset();
+    document.getElementById('rec-start').value = new Date().toISOString().slice(0, 7);
+    recFillSelects();
+    document.getElementById('rec-form-card').style.display = 'block';
+    document.getElementById('rec-form-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function recCloseForm() {
+    document.getElementById('rec-form-card').style.display = 'none';
+    recEditingId = null;
+}
+
+function recFillSelects(rule) {
+    var acc = document.getElementById('rec-account');
+    acc.innerHTML = acctState.accounts.map(function (a) {
+        return '<option value="' + escFin(a.id) + '">' + escFin(a.name) + '</option>';
+    }).join('');
+    recTypeChange();
+    if (rule) {
+        acc.value = rule.account_id;
+        document.getElementById('rec-category').value = rule.category_id || '';
+    }
+}
+
+function recTypeChange() {
+    var type = document.getElementById('rec-type').value;
+    var sel = document.getElementById('rec-category');
+    var keep = sel.value;
+    sel.innerHTML = '<option value="">— none —</option>'
+        + recCategories.filter(function (c) { return c.type === type && !c.archived; })
+            .map(function (c) { return '<option value="' + escFin(c.id) + '">' + escFin(c.name) + '</option>'; })
+            .join('');
+    sel.value = keep;
+}
+
+function recEdit(id) {
+    var r = recRules.filter(function (x) { return x.id === id; })[0];
+    if (!r) return;
+    recEditingId = id;
+    document.getElementById('rec-form-title').textContent = 'Edit rule';
+    document.getElementById('rec-name').value = r.name;
+    document.getElementById('rec-type').value = r.type;
+    document.getElementById('rec-amount').value = r.amount;
+    document.getElementById('rec-day').value = r.day_of_month;
+    document.getElementById('rec-start').value = r.start_period;
+    document.getElementById('rec-end').value = r.end_period || '';
+    document.getElementById('rec-counterparty').value = r.counterparty || '';
+    document.getElementById('rec-description').value = r.description || '';
+    recFillSelects(r);
+    document.getElementById('rec-form-card').style.display = 'block';
+    document.getElementById('rec-form-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function recSubmit(ev) {
+    ev.preventDefault();
+    var payload = {
+        action:       recEditingId ? 'update' : 'create',
+        id:           recEditingId,
+        name:         document.getElementById('rec-name').value,
+        type:         document.getElementById('rec-type').value,
+        amount:       parseFloat(document.getElementById('rec-amount').value),
+        account_id:   document.getElementById('rec-account').value,
+        category_id:  document.getElementById('rec-category').value,
+        day_of_month: parseInt(document.getElementById('rec-day').value, 10),
+        start_period: document.getElementById('rec-start').value,
+        end_period:   document.getElementById('rec-end').value,
+        counterparty: document.getElementById('rec-counterparty').value,
+        description:  document.getElementById('rec-description').value,
+    };
+    apiPost('recurring-api.php', payload).then(function (d) {
+        if (d.error) return recAlert(d.error, false);
+        recAlert('Rule saved.', true);
+        recCloseForm();
+        loadRecurring();
+    });
+}
+
+function recRun(id) {
+    apiPost('recurring-api.php', { action: 'run', id: id }).then(function (d) {
+        if (d.error) return recAlert(d.error, false);
+        recAlert(recRunMessage(d), true);
+        loadRecurring();
+    });
+}
+
+function recRunAll() {
+    apiPost('recurring-api.php', { action: 'run', all: true }).then(function (d) {
+        if (d.error) return recAlert(d.error, false);
+        recAlert(recRunMessage(d), true);
+        loadRecurring();
+    });
+}
+
+// A run can book several months for one rule at once, so the useful number is
+// how many entries were written rather than how many rules ran.
+function recRunMessage(d) {
+    var n = d.created_count || 0;
+    if (!n) {
+        var why = (d.results || []).filter(function (r) { return r.skipped && r.reason; });
+        return why.length ? why[0].reason : 'Nothing was due.';
+    }
+    var amounts = Object.keys(d.total_by_currency || {}).map(function (c) {
+        return fmtMoney(d.total_by_currency[c], c);
+    }).join(', ');
+    return 'Booked ' + n + ' entr' + (n === 1 ? 'y' : 'ies') + (amounts ? ' — ' + amounts : '') + '.';
+}
+
+function recToggle(id, active) {
+    apiPost('recurring-api.php', { action: 'toggle', id: id, active: active }).then(function (d) {
+        if (d.error) return recAlert(d.error, false);
+        loadRecurring();
+    });
+}
+
+function recDelete(id) {
+    var r = recRules.filter(function (x) { return x.id === id; })[0];
+    if (!confirm('Delete the rule "' + (r ? r.name : id) + '"?\n\nEntries it already booked stay in the ledger.')) return;
+    apiPost('recurring-api.php', { action: 'delete', id: id }).then(function (d) {
+        if (d.error) return recAlert(d.error, false);
+        recAlert('Rule deleted.', true);
+        loadRecurring();
     });
 }
 </script>

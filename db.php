@@ -6,6 +6,13 @@
 //
 // Migration from finances.json / petty-cash.json runs once, gated by
 // the meta key "migrated_v1" so re-deploys don't re-import.
+//
+// initSchema() below is CREATE TABLE IF NOT EXISTS and describes the ORIGINAL
+// schema only — it deliberately never changes. Everything added since lives in
+// migrations.php, which upgrades a live database in place. Adding a column
+// here instead would do nothing on a server where the database already exists.
+
+require_once __DIR__ . '/migrations.php';
 
 const DB_DIR  = __DIR__ . '/db';
 const DB_PATH = __DIR__ . '/db/erika.sqlite';
@@ -28,6 +35,7 @@ function db(): PDO {
     initSchema($pdo);
     seedDefaults($pdo);
     runMigrations($pdo);
+    runSchemaMigrations($pdo);
 
     return $pdo;
 }

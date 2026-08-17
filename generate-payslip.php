@@ -1,4 +1,18 @@
 <?php
+// Issue one payslip and print it.
+//
+// The page itself is unchanged — same A4 sheet, same numbers, same print
+// behaviour. What happens behind it is not. This used to write a row to
+// history.json, mark the activity entries paid, and hand-roll a single advance
+// recovery transaction, leaving the salary itself to a "Post salaries to
+// Finances" button somebody had to remember to press. Now one savePayslip()
+// call records the slip and books all of it — net pay, advance recovered,
+// statutory withheld — inside one transaction.
+//
+// history.json is still written so the Document History screen keeps working,
+// but it is a display log now: the payslips table is what the books are built
+// from, and it is the only one that never truncates.
+
 require_once __DIR__ . '/auth.php';
 requireLogin();
 
@@ -8,220 +22,108 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 verifyCsrf();
 
-// ── Number-to-words (Pakistani / South Asian format) ─────────────────────────
-function numToWords(int $n): string {
-    if ($n === 0) return 'Zero';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/payroll-lib.php';     // payrollMarkActivityPaid()
+require_once __DIR__ . '/payslip-render.php';  // renderPayslipHtml(), payslipStyles()
 
-    $ones = ['', 'One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
-             'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen',
-             'Seventeen','Eighteen','Nineteen'];
-    $tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+$pay_period_raw = trim((string) ($_POST['pay_period'] ?? ''));
+if (!isMonth($pay_period_raw)) $pay_period_raw = date('Y-m');
+$pay_period = periodLabel($pay_period_raw);
 
-    $words = '';
+$slip = [
+    'employee'         => trim((string) ($_POST['employee_name'] ?? '')),
+    'designation'      => trim((string) ($_POST['designation']   ?? '')),
+    'period'           => $pay_period_raw,
+    'basic'            => (float) ($_POST['basic_salary']     ?? 0),
+    'allowance'        => (float) ($_POST['allowance']        ?? 0),
+    'commission'       => (float) ($_POST['commission']       ?? 0),
+    'bonus'            => (float) ($_POST['performer_bonus']  ?? 0),
+    'provident_fund'   => (float) ($_POST['provident_fund']   ?? 0),
+    'eobi'             => (float) ($_POST['eobi']             ?? 0),
+    'professional_tax' => (float) ($_POST['professional_tax'] ?? 0),
+    'loan'             => (float) ($_POST['loan']             ?? 0),
+    'absent_late'      => (float) ($_POST['absent_late']      ?? 0),
+    'penalty'          => (float) ($_POST['penalty']          ?? 0),
+];
 
-    if ($n >= 10000000) {
-        $words .= numToWords((int)($n / 10000000)) . ' Crore ';
-        $n %= 10000000;
-    }
-    if ($n >= 100000) {
-        $words .= numToWords((int)($n / 100000)) . ' Lakh ';
-        $n %= 100000;
-    }
-    if ($n >= 1000) {
-        $words .= numToWords((int)($n / 1000)) . ' Thousand ';
-        $n %= 1000;
-    }
-    if ($n >= 100) {
-        $words .= $ones[(int)($n / 100)] . ' Hundred ';
-        $n %= 100;
-    }
-    if ($n >= 20) {
-        $words .= $tens[(int)($n / 10)] . ' ';
-        $n %= 10;
-    }
-    if ($n > 0) {
-        $words .= $ones[$n] . ' ';
-    }
-
-    return trim($words);
-}
-
-// ── Sanitise inputs ───────────────────────────────────────────────────────────
-function h(string $v): string {
-    return htmlspecialchars(trim($v), ENT_QUOTES);
-}
-
-function fmtAmt(float $v): string {
-    return $v > 0 ? number_format($v, 0, '.', ',') : '';
-}
-
-$employee_name  = h($_POST['employee_name']  ?? '');
-$designation    = h($_POST['designation']    ?? '');
-$pay_period_raw = $_POST['pay_period'] ?? date('Y-m');
-$pay_period     = date('M Y', strtotime($pay_period_raw . '-01'));
-
-$basic_salary    = (float)($_POST['basic_salary']    ?? 0);
-$allowance       = (float)($_POST['allowance']       ?? 0);
-$commission      = (float)($_POST['commission']      ?? 0);
-$performer_bonus = (float)($_POST['performer_bonus'] ?? 0);
-
-$provident_fund  = (float)($_POST['provident_fund']  ?? 0);
-$eobi            = (float)($_POST['eobi']            ?? 0);
-$loan            = (float)($_POST['loan']            ?? 0);
-$professional_tax= (float)($_POST['professional_tax']?? 0);
-$absent_late     = (float)($_POST['absent_late']     ?? 0);
-$penalty         = (float)($_POST['penalty']         ?? 0);
-
-$total_earnings   = $basic_salary + $allowance + $commission + $performer_bonus;
-$total_deductions = $provident_fund + $eobi + $loan + $professional_tax + $absent_late + $penalty;
-$net_pay          = $total_earnings - $total_deductions;
-
-$net_words = numToWords((int)round($net_pay)) . ' Rupees Only';
-
-// Activity IDs that contributed to commissions / penalties / bonuses on this slip.
-// Comma-separated when submitted; we save them on the history record AND mark them
-// paid_in YYYY-MM (only on initial generation, not regeneration).
+// Activity IDs that contributed to commissions / penalties / bonuses on this
+// slip. Comma-separated when submitted; stored on the slip AND marked paid_in
+// YYYY-MM, but only on initial generation.
 $paid_activity_ids = [];
 if (!empty($_POST['paid_activity_ids'])) {
     $paid_activity_ids = array_values(array_filter(
-        array_map('trim', explode(',', $_POST['paid_activity_ids']))
+        array_map('trim', explode(',', (string) $_POST['paid_activity_ids']))
     ));
 }
+$slip['activity_ids'] = $paid_activity_ids;
 
-// ── Save to history (skip when regenerating from history) ────────────────────
-if (empty($_POST['is_regen'])) :
-$_hf   = __DIR__ . '/history.json';
-$_hist = file_exists($_hf) ? (json_decode(file_get_contents($_hf), true) ?: []) : [];
-array_unshift($_hist, [
-    'id'              => uniqid('ps_', true),
-    'type'            => 'payslip',
-    'employee_name'   => trim($_POST['employee_name']    ?? ''),
-    'designation'     => trim($_POST['designation']      ?? ''),
-    'pay_period'      => $pay_period_raw,
-    'basic_salary'    => $basic_salary,
-    'allowance'       => $allowance,
-    'commission'      => $commission,
-    'performer_bonus' => $performer_bonus,
-    'provident_fund'  => $provident_fund,
-    'eobi'            => $eobi,
-    'loan'            => $loan,
-    'professional_tax'=> $professional_tax,
-    'absent_late'     => $absent_late,
-    'penalty'         => $penalty,
-    'paid_activity_ids' => $paid_activity_ids,
-    'generated_at'    => date('Y-m-d H:i:s'),
-]);
-if (count($_hist) > 200) $_hist = array_slice($_hist, 0, 200);
-file_put_contents($_hf, json_encode($_hist, JSON_PRETTY_PRINT));
-unset($_hf, $_hist);
+// Which account the net pay leaves. Falls back to the saved default, and
+// postPayslip() falls back again to the first ordinary asset account, so a form
+// that never learned about this field still works.
+$account_id = trim((string) ($_POST['account_id'] ?? ''));
 
-// Mark contributing activity entries as paid in this pay period
-if (!empty($paid_activity_ids)) {
-    $_af = __DIR__ . '/activity.json';
-    $_act = file_exists($_af) ? (json_decode(file_get_contents($_af), true) ?: []) : [];
-    $_idSet = array_flip($paid_activity_ids);
-    foreach ($_act as &$_e) {
-        if (isset($_idSet[$_e['id'] ?? ''])) {
-            $_e['paid_in'] = $pay_period_raw;
-        }
-    }
-    unset($_e);
-    file_put_contents($_af, json_encode($_act, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    unset($_af, $_act, $_idSet);
-}
+$save_error = null;
 
-// ── Auto-record advance recovery when Loan > 0 ─────────────────────────────
-// If this payslip deducts a Loan (i.e. an outstanding advance), record an
-// offsetting transfer from "Employee Advances" → "HBL — Erika Media" with
-// counterparty = employee name. This drops the receivable so next month's
-// payslip auto-fill correctly shows the reduced balance.
-if ($loan > 0) {
-    require_once __DIR__ . '/db.php';
+// ── Record and book, unless this is a reprint ────────────────────────────────
+// is_regen means the user re-opened an existing document from Document History
+// or clicked Re-gen on a row that already has a slip. That is a reprint of a
+// document that already exists in the books: re-saving would void the live slip
+// and write a fresh set of ledger rows for a payslip nobody re-issued.
+if (empty($_POST['is_regen'])) {
     try {
         $pdo = db();
-        $advAcc = $pdo->prepare("SELECT id, currency FROM accounts WHERE LOWER(name) = 'employee advances' LIMIT 1");
-        $advAcc->execute();
-        $advRow = $advAcc->fetch();
+        $res = savePayslip($pdo, $slip, ['account_id' => $account_id]);
 
-        $bookStmt = $pdo->prepare("SELECT id FROM books WHERE LOWER(name) LIKE 'erika%' LIMIT 1");
-        $bookStmt->execute();
-        $bookRow = $bookStmt->fetch();
-
-        // The employee's salary expense category, so the recovered amount lands
-        // in the P&L alongside the rest of their pay. NULL is acceptable — the
-        // account balance is still right, the amount is just uncategorised.
-        $empName = trim($_POST['employee_name'] ?? '');
-        $catStmt = $pdo->prepare(
-            "SELECT id FROM categories
-             WHERE type = 'expense' AND archived = 0
-               AND LOWER(TRIM(linked_employee)) = LOWER(TRIM(?)) LIMIT 1"
-        );
-        $catStmt->execute([$empName]);
-        $catId = $catStmt->fetchColumn() ?: null;
-
-        // Date the recovery to the pay period it belongs to, not the day the
-        // slip happened to be printed — otherwise a July slip run on 3 August
-        // lands in August's P&L.
-        $recoveryDate = preg_match('/^\d{4}-\d{2}$/', (string) $pay_period_raw)
-            ? date('Y-m-t', strtotime($pay_period_raw . '-01'))
-            : date('Y-m-d');
-
-        if ($advRow && $bookRow) {
-            $now = date('c');
-            // Recovering an advance moves NO cash: the employee is simply paid
-            // less this month. It settles the receivable and turns that amount
-            // into salary cost. Recording it as a transfer into the bank (as
-            // this once did) invented money that never arrived and left the
-            // bank balance overstated by the advance on every recovery.
-            //
-            // One expense against Employee Advances does both: it draws the
-            // account down by $loan and books $loan of salary expense.
-            // A single row is also atomic — the old two-row pair could leave a
-            // half-written transfer if the second insert failed.
-            $pdo->prepare(
-                'INSERT INTO transactions
-                    (id, date, book_id, type, amount, currency, account_id, category_id,
-                     counterparty, description, void, created_at, updated_at)
-                 VALUES (?, ?, ?, "expense", ?, ?, ?, ?, ?, ?, 0, ?, ?)'
-            )->execute([
-                'tx_' . bin2hex(random_bytes(6)),
-                $recoveryDate,
-                $bookRow['id'], $loan,
-                $advRow['currency'], $advRow['id'], $catId,
-                $empName,
-                'Auto: advance recovery on payslip ' . $pay_period_raw,
-                $now, $now,
-            ]);
+        // Print what was recorded, not what was asked for. savePayslip clamps
+        // the advance recovery to what the employee actually still owes, so a
+        // stale form offering to recover 25,000 against a 6,000 balance books
+        // 6,000 — and the sheet the employee signs has to say the same.
+        $stored = $res['payslip'];
+        foreach (['basic','allowance','commission','bonus','provident_fund','eobi',
+                  'professional_tax','loan','absent_late','penalty'] as $k) {
+            $slip[$k] = $stored[$k];
         }
+
+        // Display log for the Document History screen. Same shape as always so
+        // regenerate.php can post it straight back here, and the same 200-record
+        // cap — offer letters share this file and it is not a record of account.
+        $hf   = __DIR__ . '/history.json';
+        $hist = payrollReadJson($hf);
+        array_unshift($hist, [
+            'id'                => $stored['id'],   // the real payslip id, so History links to the record
+            'type'              => 'payslip',
+            'employee_name'     => $stored['employee'],
+            'designation'       => $stored['designation'],
+            'pay_period'        => $pay_period_raw,
+            'basic_salary'      => $stored['basic'],
+            'allowance'         => $stored['allowance'],
+            'commission'        => $stored['commission'],
+            'performer_bonus'   => $stored['bonus'],
+            'provident_fund'    => $stored['provident_fund'],
+            'eobi'              => $stored['eobi'],
+            'loan'              => $stored['loan'],
+            'professional_tax'  => $stored['professional_tax'],
+            'absent_late'       => $stored['absent_late'],
+            'penalty'           => $stored['penalty'],
+            'paid_activity_ids' => $paid_activity_ids,
+            'generated_at'      => date('Y-m-d H:i:s'),
+        ]);
+        if (count($hist) > 200) $hist = array_slice($hist, 0, 200);
+        file_put_contents($hf, json_encode($hist, JSON_PRETTY_PRINT));
+
+        payrollMarkActivityPaid($paid_activity_ids, $pay_period_raw);
     } catch (Throwable $e) {
-        // Non-fatal: payslip still renders. Surfacing the error would
-        // disrupt the user's printable output for a non-blocking concern.
-        error_log('payslip advance recovery failed: ' . $e->getMessage());
+        // The slip still prints, because the person waiting on it should not be
+        // stranded on a stack trace — but this is not the old "advance recovery
+        // failed, never mind" case. Nothing was recorded, so it says so, loudly
+        // and on screen only. The activity entries stay unpaid and history stays
+        // untouched, which means generating again is safe.
+        $save_error = $e->getMessage();
+        error_log('payslip save failed: ' . $save_error);
     }
 }
-endif;
 
-// Build earnings rows (always show salary & allowance; others only if > 0)
-$earn_rows = [
-    ['Salary',          $basic_salary],
-    ['Allowance',       $allowance],
-];
-if ($commission      > 0) $earn_rows[] = ['Commission',      $commission];
-if ($performer_bonus > 0) $earn_rows[] = ['Punctuality Bonus', $performer_bonus];
-
-// Build deduction rows (only show if > 0)
-$ded_rows = [];
-if ($provident_fund  > 0) $ded_rows[] = ['Provident Fund',  $provident_fund];
-if ($eobi            > 0) $ded_rows[] = ['EOBI',            $eobi];
-if ($loan            > 0) $ded_rows[] = ['Loan',            $loan];
-if ($professional_tax> 0) $ded_rows[] = ['Professional Tax',$professional_tax];
-if ($absent_late     > 0) $ded_rows[] = ['Absent/Late',     $absent_late];
-if ($penalty         > 0) $ded_rows[] = ['Penalty',         $penalty];
-
-// Pad to same length so the table rows line up
-$max_rows = max(count($earn_rows), count($ded_rows), 4); // minimum 4 body rows
-while (count($earn_rows) < $max_rows) $earn_rows[] = ['', 0];
-while (count($ded_rows)  < $max_rows) $ded_rows[]  = ['', 0];
+$employee_name = payslipEsc($slip['employee']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -229,260 +131,22 @@ while (count($ded_rows)  < $max_rows) $ded_rows[]  = ['', 0];
     <meta charset="UTF-8">
     <title>Payslip — <?= $employee_name ?> — <?= $pay_period ?></title>
     <style>
-        *, *::before, *::after { box-sizing: border-box; }
+<?= payslipStyles() ?>
 
-        /* ── Screen wrapper ──────────────────── */
-        body {
-            margin: 0;
-            padding: 30px 20px 60px;
-            background: #d6dce6;
-            font-family: Arial, Helvetica, sans-serif;
-        }
-
-        .action-bar {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            background: #0d1b3e;
-            padding: 10px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            z-index: 999;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-        }
-
-        .action-bar span {
-            color: rgba(255,255,255,0.7);
-            font-size: 13px;
-            font-family: Arial, sans-serif;
-        }
-
-        .action-bar span strong { color: #fff; }
-
-        .btn-print {
-            padding: 9px 22px;
-            background: #4a90d9;
-            color: #fff;
-            border: none;
+        .save-warning {
+            max-width: 210mm;
+            margin: 0 auto 14px;
+            padding: 11px 16px;
+            background: #fdecea;
+            border: 1px solid #e6a29a;
             border-radius: 5px;
+            color: #8c2f22;
             font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: Arial, sans-serif;
-        }
-
-        .btn-print:hover { background: #357abd; }
-
-        .page-wrap { margin-top: 58px; }
-
-        /* ── A4 Page ─────────────────────────── */
-        .page {
-            width: 210mm;
-            min-height: 297mm;
-            background: #fff;
-            margin: 0 auto;
-            padding: 36px 48px 48px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
-            position: relative;
-        }
-
-        /* ── Logo + header ────────────────────── */
-        .slip-header {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 0;
-        }
-
-        .logo-box {
-            background: #0d1b3e;
-            padding: 7px 9px;
-            border-radius: 4px;
-            flex-shrink: 0;
-        }
-
-        .logo-box img {
-            height: 65px;
-            width: auto;
-            display: block;
-        }
-
-        .slip-title {
-            flex: 1;
-            text-align: center;
-        }
-
-        .slip-title h1 {
-            font-size: 26px;
-            font-weight: 400;
-            color: #222;
-            margin: 6px 0 4px;
-            letter-spacing: 0.5px;
-        }
-
-        .slip-title .company-name {
-            font-size: 13px;
-            color: #333;
-            font-weight: 400;
-            margin-bottom: 2px;
-        }
-
-        .slip-title .company-addr {
-            font-size: 12px;
-            color: #555;
             line-height: 1.5;
         }
 
-        /* ── Employee info row ────────────────── */
-        .emp-info {
-            display: flex;
-            justify-content: space-between;
-            margin: 26px 0 22px;
-            font-size: 13px;
-            color: #222;
-        }
-
-        .ei-col { line-height: 1.8; }
-
-        .ei-row { display: flex; }
-
-        .ei-label {
-            width: 115px;
-            color: #333;
-        }
-
-        /* ── Earnings / Deductions table ──────── */
-        table.slip-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-            margin-bottom: 0;
-            table-layout: fixed;
-        }
-
-        .slip-table thead th {
-            padding: 9px 12px;
-            border: 1px solid #ccc;
-            background: #f7f7f7;
-            font-weight: 700;
-            color: #222;
-            overflow: hidden;
-        }
-
-        .slip-table thead th:nth-child(2),
-        .slip-table thead th:nth-child(4) {
-            text-align: right;
-        }
-
-        .slip-table tbody td {
-            padding: 7px 12px;
-            border: 1px solid #ccc;
-            color: #333;
-            word-break: break-word;
-            overflow-wrap: break-word;
-        }
-
-        .slip-table tbody td:nth-child(2),
-        .slip-table tbody td:nth-child(4) {
-            text-align: right;
-        }
-
-        .slip-table tfoot td {
-            padding: 9px 12px;
-            border: 1px solid #ccc;
-            font-weight: 700;
-            background: #f7f7f7;
-            color: #222;
-        }
-
-        .slip-table tfoot td:nth-child(2),
-        .slip-table tfoot td:nth-child(4) {
-            text-align: right;
-        }
-
-        /* ── Net Pay row ─────────────────────── */
-        .net-pay-row {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            border: 1px solid #ccc;
-            border-top: none;
-            padding: 9px 12px;
-            font-size: 13.5px;
-            font-weight: 700;
-            color: #111;
-        }
-
-        .net-pay-row .np-label { margin-right: auto; }
-
-        .net-pay-row .np-amount {
-            min-width: 90px;
-            text-align: right;
-        }
-
-        /* ── Amount in words ─────────────────── */
-        .amount-words {
-            text-align: center;
-            margin: 28px 0 38px;
-        }
-
-        .amount-words .aw-number {
-            font-size: 17px;
-            font-weight: 700;
-            color: #111;
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        .amount-words .aw-text {
-            font-size: 13px;
-            color: #333;
-        }
-
-        /* ── Signatures ──────────────────────── */
-        .signatures {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 16px;
-        }
-
-        .sig-block {
-            text-align: center;
-            width: 38%;
-        }
-
-        .sig-label {
-            font-size: 13px;
-            color: #333;
-            margin-bottom: 34px;
-        }
-
-        .sig-line-draw {
-            border-top: 1.5px solid #1a2e5a;
-        }
-
-        /* ── Footer note ─────────────────────── */
-        .slip-footer {
-            text-align: center;
-            font-size: 12px;
-            color: #888;
-            font-style: italic;
-            margin-top: 18px;
-        }
-
-        /* ── Print ───────────────────────────── */
         @media print {
-            body { background: #fff; padding: 0; }
-            .action-bar { display: none !important; }
-            .page-wrap { margin-top: 0; }
-            .page {
-                box-sizing: border-box;
-                width: 100%;
-                min-height: auto;
-                margin: 0;
-                padding: 14mm 16mm;
-                box-shadow: none;
-            }
-            @page { size: A4 portrait; margin: 0; }
+            .save-warning { display: none !important; }
         }
     </style>
 </head>
@@ -494,114 +158,15 @@ while (count($ded_rows)  < $max_rows) $ded_rows[]  = ['', 0];
 </div>
 
 <div class="page-wrap">
-<div class="page">
-
-    <!-- Header: logo + title -->
-    <div class="slip-header">
-        <div class="logo-box">
-            <img src="assets/logo.png" alt="Erika Media">
-        </div>
-        <div class="slip-title">
-            <h1>Payslip</h1>
-            <div class="company-name">Erika Media</div>
-            <div class="company-addr">
-                Office No. 505, 5th Floor<br>
-                Kashif Center, Sharah-e-Faisal Karachi
-            </div>
-        </div>
+<?php if ($save_error !== null): ?>
+    <div class="save-warning">
+        <strong>This payslip was not recorded.</strong>
+        It printed, but nothing was saved and nothing reached the books:
+        <?= payslipEsc($save_error) ?>.
+        Fix that and generate it again — no activity has been marked paid, so re-running is safe.
     </div>
-
-    <!-- Employee info -->
-    <div class="emp-info">
-        <div class="ei-col">
-            <div class="ei-row">
-                <span class="ei-label">Pay Period</span>
-                <span>: <?= $pay_period ?></span>
-            </div>
-        </div>
-        <div class="ei-col">
-            <div class="ei-row">
-                <span class="ei-label">Employee Name</span>
-                <span>: <?= $employee_name ?></span>
-            </div>
-            <div class="ei-row">
-                <span class="ei-label">Designation</span>
-                <span>: <?= $designation ?></span>
-            </div>
-            <div class="ei-row">
-                <span class="ei-label">Basic Salary</span>
-                <span>: <?= number_format($basic_salary, 0, '.', ',') ?></span>
-            </div>
-            <div class="ei-row">
-                <span class="ei-label">Allowance</span>
-                <span>: <?= number_format($allowance, 0, '.', ',') ?></span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Earnings / Deductions Table -->
-    <table class="slip-table">
-        <colgroup>
-            <col style="width:35%">
-            <col style="width:15%">
-            <col style="width:35%">
-            <col style="width:15%">
-        </colgroup>
-        <thead>
-            <tr>
-                <th>Earnings</th>
-                <th>Amount</th>
-                <th>Deductions</th>
-                <th>Amount</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php for ($i = 0; $i < $max_rows; $i++): ?>
-            <tr>
-                <td><?= h($earn_rows[$i][0]) ?></td>
-                <td><?= $earn_rows[$i][0] !== '' ? fmtAmt($earn_rows[$i][1]) : '' ?></td>
-                <td><?= isset($ded_rows[$i]) ? h($ded_rows[$i][0]) : '' ?></td>
-                <td><?= (isset($ded_rows[$i]) && $ded_rows[$i][0] !== '') ? fmtAmt($ded_rows[$i][1]) : '' ?></td>
-            </tr>
-            <?php endfor; ?>
-        </tbody>
-        <tfoot>
-            <tr>
-                <td>Total Earnings</td>
-                <td><?= number_format($total_earnings, 0, '.', ',') ?></td>
-                <td>Total Deduction</td>
-                <td><?= $total_deductions > 0 ? number_format($total_deductions, 0, '.', ',') : '' ?></td>
-            </tr>
-        </tfoot>
-    </table>
-
-    <!-- Net Pay -->
-    <div class="net-pay-row">
-        <span class="np-label">Net Pay</span>
-        <span class="np-amount"><?= number_format($net_pay, 0, '.', ',') ?></span>
-    </div>
-
-    <!-- Amount in words -->
-    <div class="amount-words">
-        <span class="aw-number"><?= number_format($net_pay, 0, '.', ',') ?></span>
-        <span class="aw-text"><?= $net_words ?></span>
-    </div>
-
-    <!-- Signatures -->
-    <div class="signatures">
-        <div class="sig-block">
-            <div class="sig-label">Employer Signature</div>
-            <div class="sig-line-draw"></div>
-        </div>
-        <div class="sig-block">
-            <div class="sig-label">Employee Signature</div>
-            <div class="sig-line-draw"></div>
-        </div>
-    </div>
-
-    <div class="slip-footer">This is system generated payslip</div>
-
-</div>
+<?php endif; ?>
+<?= renderPayslipHtml($slip) ?>
 </div>
 
 </body>
