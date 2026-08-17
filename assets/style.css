@@ -1787,3 +1787,74 @@ input.form-control {
     .range-spacer { display: none; }
     .stat-strip { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 }
+
+/* ── Dialog ─────────────────────────────────────
+   Holds an existing form card while it is being edited, so opening an editor
+   never scrolls the page. The card keeps its own styling; only its position
+   changes. See openCardModal() in index.php. */
+.modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: rgba(20, 17, 12, 0.45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    padding: 40px 20px;
+    overflow-y: auto;
+    animation: modalIn 0.14s ease;
+}
+.modal-backdrop.open { display: block; }
+
+@keyframes modalIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-shell {
+    position: relative;
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+}
+.modal-shell > .card {
+    margin: 0 !important;
+    box-shadow: var(--shadow-lg);
+    /* Long forms scroll inside the dialog rather than growing the page. */
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    animation: modalCardIn 0.16s ease;
+}
+@keyframes modalCardIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.modal-close {
+    position: absolute;
+    top: -14px;
+    right: -14px;
+    z-index: 2;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    font-family: inherit;
+}
+.modal-close:hover { background: var(--danger-soft); color: var(--danger); border-color: #e3b6b6; }
+
+/* The row being edited stays marked while the dialog is open, so closing it
+   lands you back on the thing you were working on rather than a wall of rows. */
+tr.row-editing td,
+.rec-editing {
+    background: var(--accent-faint) !important;
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+@media (max-width: 720px) {
+    .modal-backdrop { padding: 16px 10px; }
+    .modal-close { top: -8px; right: -6px; }
+}

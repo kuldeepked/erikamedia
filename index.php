@@ -556,7 +556,7 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
         <div id="tab-team" class="tab-content">
 
             <!-- Add / Edit Employee -->
-            <div class="card" style="margin-bottom: 24px;">
+            <div class="card" id="emp-form-card" style="margin-bottom: 24px;">
                 <div class="card-title" id="emp-form-title">Add Team Member</div>
                 <div class="card-subtitle">
                     Saved employees appear instantly in dropdowns across the dashboard.
@@ -1424,12 +1424,97 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
     </div><!-- /content-area -->
 </div><!-- /main -->
 
+<!-- ═══════════════════════════════════════════
+     DIALOG
+     Edit forms live at the top of their screen. Opening one used to scroll
+     the page up to it, which loses your place in a long list and means
+     scrolling back down after every single edit. Instead the form is lifted
+     into this overlay and put back where it came from on close, so the page
+     underneath never moves.
+═══════════════════════════════════════════ -->
+<div id="modal-backdrop" class="modal-backdrop" onclick="modalBackdropClick(event)">
+    <div class="modal-shell" id="modal-shell">
+        <button type="button" class="modal-close" onclick="closeCardModal()" aria-label="Close">&times;</button>
+    </div>
+</div>
+
 <script>
 // ── Globals ───────────────────────────────────────────────────────────────
 var teamMembers = <?= json_encode(array_values($employees)) ?>;
 var DEPARTMENTS = ['Team Lead', 'Reverse Recruiting Agent', 'Office Boy', 'Quality Assurance', 'Operations'];
 var CSRF        = document.querySelector('meta[name="csrf-token"]').content;
 var INTERVIEW_RATE = <?= INTERVIEW_RATE ?>;
+
+// ── Dialog ────────────────────────────────────────────────────────────────
+// Every edit form on this dashboard sits at the top of its screen, so opening
+// one scrolled the page up and lost your place in the list below — after each
+// edit you had to scroll all the way back down to reach the next row.
+//
+// Rather than rebuild each form as a dialog, the existing card is moved into
+// the overlay and moved back on close. Same element, same ids, same submit
+// handlers; only where it sits on the page changes, and the page underneath
+// never scrolls.
+
+var _modal = { cardId: null, placeholder: null, prevDisplay: '', marked: null };
+
+function openCardModal(cardId, markEl) {
+    var card = document.getElementById(cardId);
+    if (!card) return;
+    closeCardModal();
+
+    // Remember the exact spot so the card goes back where it belongs. The Team
+    // form is visible inline for "add", so its previous display has to be
+    // restored too rather than assumed to be "none".
+    var ph = document.createElement('div');
+    ph.style.display = 'none';
+    card.parentNode.insertBefore(ph, card);
+
+    _modal = {
+        cardId: cardId,
+        placeholder: ph,
+        prevDisplay: card.style.display,
+        marked: markEl || null,
+    };
+
+    document.getElementById('modal-shell').appendChild(card);
+    card.style.display = 'block';
+    if (markEl) markEl.classList.add('row-editing');
+
+    var backdrop = document.getElementById('modal-backdrop');
+    backdrop.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    var first = card.querySelector('input:not([type=hidden]):not([disabled]), select, textarea');
+    if (first) setTimeout(function () { try { first.focus(); } catch (e) {} }, 60);
+}
+
+function closeCardModal() {
+    if (!_modal.cardId) return;
+    var card = document.getElementById(_modal.cardId);
+    var ph   = _modal.placeholder;
+    if (card && ph && ph.parentNode) {
+        ph.parentNode.insertBefore(card, ph);
+        ph.parentNode.removeChild(ph);
+        card.style.display = _modal.prevDisplay;
+    }
+    if (_modal.marked) _modal.marked.classList.remove('row-editing');
+
+    document.getElementById('modal-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+    _modal = { cardId: null, placeholder: null, prevDisplay: '', marked: null };
+}
+
+function modalIsOpen() { return !!_modal.cardId; }
+
+// Only a click on the backdrop itself closes; clicks inside the form bubble up
+// here too and must not dismiss half-finished work.
+function modalBackdropClick(ev) {
+    if (ev.target === document.getElementById('modal-backdrop')) closeCardModal();
+}
+
+document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && modalIsOpen()) closeCardModal();
+});
 
 // ── Centralized fetch with CSRF ───────────────────────────────────────────
 function apiPost(url, payload) {
@@ -2784,7 +2869,7 @@ function renderEmployeeList() {
         var advCell = advance > 0
             ? '<strong style="color: var(--warning)">' + esc(numFmt(advance)) + '</strong>'
             : '<span class="muted">—</span>';
-        html += '<tr>'
+        html += '<tr data-emp="' + esc(m.name) + '">'
               + '<td>' + esc(m.name) + '</td>'
               + '<td>' + esc(m.designation) + '</td>'
               + '<td style="white-space:nowrap; color: var(--text-muted)">' + esc(m.joining_date || '—') + '</td>'
@@ -2820,10 +2905,23 @@ function startEdit(name) {
     document.getElementById('emp-pt').value               = m.professional_tax   || 0;
     document.getElementById('emp-submit-btn').lastChild.textContent = ' Save Changes';
     document.getElementById('emp-cancel-btn').style.display = 'inline-flex';
-    document.querySelector('#tab-team .card').scrollIntoView({ behavior: 'smooth' });
+    // Open over the list instead of scrolling up to the form.
+    openCardModal('emp-form-card', findRowByEmployee(name));
+}
+
+// Matching on the dataset rather than building a `tr[data-emp="…"]` selector:
+// a name containing a quote or a backslash would break the selector, and staff
+// names are not something this code gets to make assumptions about.
+function findRowByEmployee(name) {
+    var rows = document.querySelectorAll('#tab-team tr[data-emp]');
+    for (var i = 0; i < rows.length; i++) {
+        if (rows[i].dataset.emp === name) return rows[i];
+    }
+    return null;
 }
 
 function cancelEmpEdit() {
+    closeCardModal();
     document.getElementById('emp-form-title').textContent = 'Add Team Member';
     document.getElementById('emp-form').reset();
     document.getElementById('emp-original-name').value = '';
@@ -2989,6 +3087,7 @@ function setField(name, value) {
 
 // ── Tab switching ─────────────────────────────────────────────────────────
 function showTab(tab, el) {
+    closeCardModal();
     document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
     document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
     document.getElementById('tab-' + tab).classList.add('active');
@@ -3194,10 +3293,11 @@ function openTxForm(type) {
     txEditingId = null;
     document.getElementById('tx-submit-btn').textContent = 'Save';
     onTxTypeChange();
-    document.getElementById('tx-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openCardModal('tx-form-card');
 }
 
 function closeTxForm() {
+    closeCardModal();
     document.getElementById('tx-form-card').style.display = 'none';
     txEditingId = null;
 }
@@ -3273,10 +3373,11 @@ function openTransferForm() {
     document.getElementById('trn-amount').value = '';
     document.getElementById('trn-description').value = '';
     document.getElementById('trn-counterparty').value = '';
-    document.getElementById('transfer-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openCardModal('transfer-form-card');
 }
 
 function closeTransferForm() {
+    closeCardModal();
     document.getElementById('transfer-form-card').style.display = 'none';
 }
 
@@ -3322,10 +3423,11 @@ function openSplitForm() {
 
     populatePairBookSelect();
     resetSplitToDefault();
-    document.getElementById('split-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openCardModal('split-form-card');
 }
 
 function closeSplitForm() {
+    closeCardModal();
     document.getElementById('split-form-card').style.display = 'none';
 }
 
@@ -5118,7 +5220,7 @@ function recRenderList(d) {
 
     h += rules.map(function (r) {
         var missed = (r.missed_periods || []).length;
-        return '<tr' + (r.active ? '' : ' style="opacity:.5;"') + '>'
+        return '<tr id="rec-row-' + escFin(r.id) + '"' + (r.active ? '' : ' style="opacity:.5;"') + '>'
              + '<td><strong>' + escFin(r.name) + '</strong>'
              + '<span class="fin-meta">' + escFin(r.counterparty || r.description || '') + '</span></td>'
              + '<td>' + escFin(r.account_name || '') + '</td>'
@@ -5151,11 +5253,11 @@ function recOpenForm() {
     document.getElementById('rec-form').reset();
     document.getElementById('rec-start').value = new Date().toISOString().slice(0, 7);
     recFillSelects();
-    document.getElementById('rec-form-card').style.display = 'block';
-    document.getElementById('rec-form-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    openCardModal('rec-form-card');
 }
 
 function recCloseForm() {
+    closeCardModal();
     document.getElementById('rec-form-card').style.display = 'none';
     recEditingId = null;
 }
@@ -5197,8 +5299,7 @@ function recEdit(id) {
     document.getElementById('rec-counterparty').value = r.counterparty || '';
     document.getElementById('rec-description').value = r.description || '';
     recFillSelects(r);
-    document.getElementById('rec-form-card').style.display = 'block';
-    document.getElementById('rec-form-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    openCardModal('rec-form-card', document.getElementById('rec-row-' + id));
 }
 
 function recSubmit(ev) {
