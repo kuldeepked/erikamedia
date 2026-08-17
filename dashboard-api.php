@@ -60,9 +60,16 @@ if ($statAcc) {
 $attention = ['unposted_payslips' => 0, 'recurring_due' => 0, 'ledger_errors' => 0];
 
 try {
-    $attention['unposted_payslips'] = (int) $pdo->query(
-        'SELECT COUNT(*) FROM payslips WHERE voided = 0 AND posted = 0'
-    )->fetchColumn();
+    $row = $pdo->query(
+        'SELECT COUNT(*) AS n, MIN(period) AS lo, MAX(period) AS hi
+         FROM payslips WHERE voided = 0 AND posted = 0'
+    )->fetch();
+    $attention['unposted_payslips'] = (int) ($row['n'] ?? 0);
+    // The months the unposted slips actually fall in. The Payroll screen opens
+    // on the current month, so without this the "post them" prompt would land
+    // on a range that hides most of what it just offered to fix.
+    $attention['unposted_from'] = (string) ($row['lo'] ?? '');
+    $attention['unposted_to']   = (string) ($row['hi'] ?? '');
 } catch (Throwable $e) { /* table not migrated yet */ }
 
 try {

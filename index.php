@@ -1267,10 +1267,11 @@ $invDueDefault = date('Y-m-d', strtotime('+7 days'));
                     <button class="btn-finance-accent" onclick="payrollDownloadAll()">
                         &#8681; Download all payslips (one PDF)
                     </button>
-                    <button class="btn-finance-secondary" onclick="payrollPostUnposted()">
+                    <button class="btn-finance-secondary" id="payroll-postbtn" onclick="payrollPostUnposted()">
                         Post unposted to ledger
                     </button>
                 </div>
+                <div id="payroll-action-alert" class="team-alert" style="margin-top:14px;"></div>
                 <p class="form-hint" style="margin-top:14px;">
                     Generating a payslip books it straight into the ledger &mdash; net pay against the paying
                     account, any advance recovered against Employee Advances, and PF, EOBI and tax against
@@ -1513,17 +1514,23 @@ function dashAttention(a) {
     if (a.ledger_errors) {
         items.push(['sev-error', a.ledger_errors + ' ledger problem' + (a.ledger_errors === 1 ? '' : 's')
                   + ' this financial year', 'These stop the books balancing.',
-                    'nav-accounting', 'Review']);
+                    'acctOpenHealth()', 'Review']);
     }
     if (a.unposted_payslips) {
+        var span = (a.unposted_from && a.unposted_to)
+            ? ' (' + monthLabel(a.unposted_from) + ' – ' + monthLabel(a.unposted_to) + ')' : '';
         items.push(['sev-warning', a.unposted_payslips + ' payslip' + (a.unposted_payslips === 1 ? '' : 's')
-                  + ' not in the ledger', 'Salary was paid but never booked as an expense.',
-                    'nav-payroll', 'Post them']);
+                  + ' not in the ledger' + span,
+                    'Salary was paid but never booked as an expense. Opens the Payroll screen '
+                  + 'over these months — you choose which account paid them before anything is booked.',
+                    'payrollOpenUnposted(' + JSON.stringify(a.unposted_from || '')
+                        + ',' + JSON.stringify(a.unposted_to || '') + ')',
+                    'Review & post']);
     }
     if (a.recurring_due) {
         items.push(['sev-info', a.recurring_due + ' recurring entr' + (a.recurring_due === 1 ? 'y' : 'ies') + ' due',
                     'Rent, subscriptions and the like are waiting to be booked.',
-                    'nav-recurring', 'Post them']);
+                    "document.getElementById('nav-recurring').click()", 'Review']);
     }
     if (!items.length) return '';
 
@@ -1531,10 +1538,33 @@ function dashAttention(a) {
         return '<div class="health-item ' + i[0] + '"><div class="health-head">'
              + '<span class="health-title">' + esc(i[1]) + '</span>'
              + '<div style="flex:1"></div>'
-             + '<button class="btn-edit" onclick="document.getElementById(\'' + i[3] + '\').click()">'
+             + '<button class="btn-edit" onclick="' + i[3].replace(/"/g, '&quot;') + '">'
              + esc(i[4]) + ' →</button></div>'
              + '<div class="health-detail">' + esc(i[2]) + '</div></div>';
     }).join('') + '</div>';
+}
+
+function acctOpenHealth() {
+    document.getElementById('nav-accounting').click();
+    acctSub('health');
+}
+
+// Jump to Payroll already covering the months that need posting. Landing on
+// the current month would show a handful of the slips the prompt just counted,
+// and pressing the button there would post only those.
+function payrollOpenUnposted(from, to) {
+    document.getElementById('nav-payroll').click();
+    if (from && to) {
+        payrollState.preset = 'custom';
+        payrollState.from = from;
+        payrollState.to = to;
+        document.getElementById('payroll-from').value = from;
+        document.getElementById('payroll-to').value = to;
+        document.querySelectorAll('#payroll-presets .range-preset').forEach(function (b) {
+            b.classList.remove('active');
+        });
+        loadPayroll();
+    }
 }
 
 function dashKpi(label, value, sub, icon) {
@@ -1738,12 +1768,29 @@ var payrollState = {
     started:   false,
 };
 
-function payrollAlert(msg, ok) {
-    var el = document.getElementById('payroll-alert');
+// `where` picks which banner to use. A message about a button the user just
+// pressed goes next to that button — the one at the top of the tab is usually
+// scrolled off screen behind a long payroll table, which is how a refusal to
+// post could look like nothing happening at all.
+function payrollAlert(msg, ok, where) {
+    var el = document.getElementById(where === 'action' ? 'payroll-action-alert' : 'payroll-alert');
     el.className = 'team-alert ' + (ok ? 'success' : 'error');
     el.innerHTML = msg;
     el.style.display = 'block';
-    if (ok) setTimeout(function () { el.style.display = 'none'; }, 6000);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (ok) setTimeout(function () { el.style.display = 'none'; }, 8000);
+}
+
+// Draw the eye to the account picker and leave it focused, so the fix for the
+// message is the thing now under the cursor.
+function payrollHighlightAccount() {
+    var sel = document.getElementById('payroll-account');
+    if (!sel) return;
+    sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    sel.style.borderColor = 'var(--danger)';
+    sel.style.boxShadow = '0 0 0 3px var(--danger-soft)';
+    try { sel.focus(); } catch (e) {}
+    setTimeout(function () { sel.style.borderColor = ''; sel.style.boxShadow = ''; }, 4000);
 }
 
 function monthShift(month, delta) {
@@ -1923,6 +1970,27 @@ function renderPayroll(d) {
     var btn = document.getElementById('payroll-genall');
     btn.disabled = pending === 0;
     btn.textContent = pending ? ('Generate & post ' + pending + ' pending') : 'All generated ✓';
+
+    // Say what pressing it will do, and where the number comes from. "Post
+    // unposted to ledger" gave no clue whether it applied to the visible month
+    // or the whole range, and no clue that it would refuse without an account.
+    var unposted = payrollUnpostedCount();
+    var post = document.getElementById('payroll-postbtn');
+    post.disabled = unposted === 0;
+    post.textContent = unposted
+        ? 'Post ' + unposted + ' payslip' + (unposted === 1 ? '' : 's') + ' to ledger'
+        : 'All posted ✓';
+
+    var accSel = document.getElementById('payroll-account');
+    var note = document.getElementById('payroll-action-alert');
+    if (unposted && accSel && !accSel.value) {
+        note.className = 'team-alert';
+        note.style.display = 'block';
+        note.innerHTML = 'Choose which account paid these salaries in the bar above — '
+                       + 'that is the only thing standing between here and the ledger.';
+    } else if (note && note.className === 'team-alert') {
+        note.style.display = 'none';
+    }
 
     if (!months.length) {
         document.getElementById('payroll-body').innerHTML =
@@ -2134,10 +2202,45 @@ function payrollDownloadAll() {
     setTimeout(function () { try { form.remove(); } catch (e) {} }, 1500);
 }
 
+function payrollUnpostedCount() {
+    var n = 0;
+    ((payrollState.data || {}).months || []).forEach(function (m) {
+        payrollVisibleRows(m).forEach(function (r) { if (r.generated && !r.posted) n++; });
+    });
+    return n;
+}
+
 function payrollPostUnposted() {
+    var pending = payrollUnpostedCount();
+    if (!pending) {
+        payrollAlert('Every payslip in ' + esc(monthLabel(payrollState.from)) + ' – '
+                   + esc(monthLabel(payrollState.to)) + ' is already in the ledger. '
+                   + 'Widen the date range at the top if you were expecting more.', true, 'action');
+        return;
+    }
+
+    // Deliberately no fallback. There are bank, cash, personal and charity
+    // accounts here; guessing one would book company payroll against whichever
+    // happened to sort first, and that is far worse than asking.
     var acc = payrollAccountId();
-    if (!acc) { payrollAlert('Pick the account salaries are paid from first.', false); return; }
-    if (!confirm('Post every payslip in this range that has not reached the ledger yet?')) return;
+    if (!acc) {
+        payrollAlert('<strong>Choose which account paid these salaries first.</strong><br>'
+                   + 'The picker is in the bar at the top of this screen — nothing is booked until '
+                   + 'it is set, so the money comes out of the right place.', false, 'action');
+        payrollHighlightAccount();
+        return;
+    }
+
+    var accName = document.getElementById('payroll-account').selectedOptions[0].textContent;
+    if (!confirm('Post ' + pending + ' payslip' + (pending === 1 ? '' : 's') + ' to the ledger?\n\n'
+        + 'Period: ' + monthLabel(payrollState.from) + ' – ' + monthLabel(payrollState.to) + '\n'
+        + 'Paid from: ' + accName + '\n\n'
+        + 'This books the salary as an expense — net pay against that account, any advance '
+        + 'recovered against Employee Advances, and PF/EOBI/tax against Statutory Payables.')) return;
+
+    var btn = document.getElementById('payroll-postbtn');
+    btn.disabled = true;
+    btn.textContent = 'Posting…';
 
     apiPost('payslips-api.php', {
         action: 'post_range',
@@ -2145,10 +2248,24 @@ function payrollPostUnposted() {
         to_period:   payrollState.to,
         account_id:  acc,
     }).then(function (d) {
-        if (d.error) { payrollAlert(esc(d.error), false); return; }
+        if (d.error) { payrollAlert(esc(d.error), false, 'action'); loadPayroll(); return; }
         var n = (d.posted || []).length;
-        payrollAlert(n ? ('<strong>Posted ' + n + ' payslip' + (n === 1 ? '' : 's') + ' to the ledger.</strong>')
-                       : 'Everything in this range was already posted.', true);
+        var msg = n
+            ? '<strong>Posted ' + n + ' payslip' + (n === 1 ? '' : 's') + ' to the ledger'
+              + (d.amount_total ? ' — Rs. ' + numFmt(d.amount_total) : '') + '.</strong>'
+            : 'Nothing needed posting in this range.';
+        if ((d.failed || []).length) {
+            msg += '<br>' + d.failed.length + ' could not be posted: '
+                 + d.failed.slice(0, 5).map(function (f) {
+                       return esc(f.employee + ' ' + f.period + ' — ' + f.error);
+                   }).join('; ');
+            payrollAlert(msg, false, 'action');
+        } else {
+            payrollAlert(msg, true, 'action');
+        }
+        loadPayroll();
+    }).catch(function (e) {
+        payrollAlert('Could not post: ' + esc(e.message || e), false, 'action');
         loadPayroll();
     });
 }
